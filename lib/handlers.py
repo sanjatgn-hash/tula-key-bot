@@ -1,6 +1,8 @@
 # lib/handlers.py
 # Обработчики сообщений для бота «Тульский ключ»
 
+import os
+import sys
 import logging
 from aiogram import F, types
 from aiogram.filters import Command, StateFilter
@@ -9,9 +11,9 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-# Локальные импорты
-import sys
+# Локальные импорты (добавляем корень проекта в путь)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import config
 from .keyboards import *
 from .sheets import save_lead, notify_admin
@@ -512,3 +514,88 @@ def register_handlers(dp):
     dp.callback_query(F.data == "main_menu_stub")(handle_main_menu_stub)
     dp.callback_query(F.data == "contact_later")(handle_contact_later)
     dp.callback_query(F.data == "contact_bot_only")(handle_bot_only)
+
+async def save_sell_phone(message: types.Message, state: FSMContext):
+    """Сохранение телефона продавца"""
+    phone = message.text.strip()
+    data = await state.get_data()
+    
+    user_data = {
+        'date': message.date.strftime("%Y-%m-%d %H:%M"),
+        'name': message.from_user.first_name,
+        'phone': phone,
+        'goal': 'Продать',
+        'budget': '',
+        'district': data.get('district', ''),
+        'deadline': '',
+        'user_id': message.from_user.id
+    }
+    
+    save_lead(user_data)
+    
+    await notify_admin(
+        message.bot,
+        f"🏡 ЛИД | Продать\n"
+        f"━━━━━━━━━━━━━━\n"
+        f"👤 {user_data['name']}\n"
+        f"📞 {phone}\n"
+        f"🏠 Тип: {data.get('prop_type', '')}\n"
+        f"📍 Район: {data.get('district', '')}"
+    )
+    
+    await message.answer(
+        f"Спасибо! 🙏 Свяжусь с вами в течение 2 часов для оценки объекта."
+    )
+    await state.clear()
+
+
+async def handle_main_menu_stub(callback: types.CallbackQuery):
+    """Заглушка для кнопки «Назад» из FAQ"""
+    await callback.answer()
+    # Можно отправить главное меню, но чтобы не спамить — просто подтверждение
+    await callback.message.answer("✅ Вернулся в главное меню. Выберите действие:", reply_markup=main_menu_kb())
+
+
+# ==================== РЕГИСТРАЦИЯ ОБРАБОТЧИКОВ ====================
+
+def register_handlers(dp):
+    """
+    Регистрация всех обработчиков в диспетчере aiogram.
+    Вызывается при инициализации бота.
+    """
+    
+    # --- Команды ---
+    dp.message(Command("start"))(cmd_start)
+    
+    # --- Главное меню ---
+    dp.callback_query(F.data == "get_checklist")(send_checklist)
+    dp.callback_query(F.data == "goal_buy")(goal_buy)
+    dp.callback_query(F.data == "goal_sell")(goal_sell)
+    dp.callback_query(F.data == "goal_invest")(goal_invest)
+    dp.callback_query(F.data == "goal_browse")(handle_browse)
+    dp.callback_query(F.data == "faq")(show_faq)
+    dp.callback_query(F.data == "referral")(referral_program)
+    
+    # --- Ветка «Купить» ---
+    dp.callback_query(F.data.startswith("budget_"))(set_budget)
+    dp.callback_query(F.data.startswith("deadline_"))(set_deadline)
+    dp.message(F.contact)(handle_contact)
+    dp.callback_query(F.data == "phone_manual")(ask_phone_manual)
+    dp.message(UserForm.waiting_for_phone)(save_phone_manual)
+    
+    # --- Ветка «Продать» ---
+    dp.callback_query(F.data.startswith("type_"))(set_property_type)
+    dp.callback_query(F.data.startswith("dist_"))(set_district)
+    dp.callback_query(F.data == "send_to_dm")(handle_send_to_dm)
+    dp.callback_query(F.data == "call_me_sell")(handle_call_me_sell)
+    dp.message(UserForm.waiting_for_sell_contact)(save_sell_phone)
+    
+    # --- Ветка «Инвестиции» ---
+    dp.callback_query(F.data.startswith("invest_"))(calculate_invest)
+    dp.callback_query(F.data == "consult_invest")(consult_invest)
+    
+    # --- Заглушки для кнопок ---
+    dp.callback_query(F.data == "main_menu_stub")(handle_main_menu_stub)
+    dp.callback_query(F.data == "contact_later")(handle_contact_later)
+    dp.callback_query(F.data == "contact_bot_only")(handle_bot_only)
+
