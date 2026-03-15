@@ -43,7 +43,26 @@ def send_message(chat_id, text, reply_markup=None):
     except Exception as e:
         logger.error(f"❌ send_message: {e}")
         return None
-
+        
+def send_checklist_file(chat_id, caption):
+    """Отправляет PDF файл чек-листа с подписью"""
+    url = f"{TELEGRAM_API_URL}/sendDocument"
+    data = {
+        "chat_id": chat_id,
+        "caption": caption,
+        "parse_mode": "HTML"
+    }
+    
+    # Отправляем файл по URL (Telegram скачает и покажет как вложение)
+    data["document"] = CHECKLIST_URL
+    
+    try:
+        resp = requests.post(url, json=data, timeout=10)
+        logger.info(f"📄 Checklist file sent to {chat_id}: {resp.status_code}")
+        return resp.json()
+    except Exception as e:
+        logger.error(f"❌ send_checklist_file error: {e}")
+        return None
 
 def answer_callback(callback_query_id):
     url = f"{TELEGRAM_API_URL}/answerCallbackQuery"
@@ -374,29 +393,31 @@ def handle_start(chat_id, name, username):
 def handle_callback(chat_id, callback_id, data, name, username):
     answer_callback(callback_id)
     
-    if data == "get_checklist":
-        # Отправляем сообщение с кнопкой-ссылкой
-        text = (
-            f"🎉 Готово!\n\n"
-            f"📄 <b>Чек-лист «7 ошибок при покупке»</b>\n\n"
-            f"💡 Совет: сохраните файл в «Избранное» 📌\n\n"
-            f"Чтобы я присылал только подходящие варианты, подскажите:"
-        )
-        
-        # Кнопка для скачивания + кнопки выбора цели
-        kb = {
-            "inline_keyboard": [
-                [{"text": "📥 Скачать чек-лист", "url": CHECKLIST_URL}],
-                [{"text": "🏠 Купить", "callback_data": "goal_buy"}],
-                [{"text": "💰 Продать", "callback_data": "goal_sell"}],
-                [{"text": "📊 Инвестировать", "callback_data": "goal_invest"}],
-                [{"text": "🤔 Пока смотрю", "callback_data": "goal_browse"}]
-            ]
-        }
-        
-        send_message(chat_id, text, reply_markup=kb)
-        logger.info(f"📥 Checklist sent to {chat_id}")
-        return
+if data == "get_checklist":
+    # Сначала отправляем файл с текстом и гиперссылкой
+    text = (
+        f"🎉 Готово!\n\n"
+        f"📄 <b>Чек-лист «7 ошибок при покупке»</b>\n\n"
+        f"💡 <a href='{CHECKLIST_URL}'>Скачать чек-лист</a> или откройте файл выше 📌\n\n"
+        f"Чтобы я присылал только подходящие варианты, подскажите:"
+    )
+    
+    # Отправляем файл
+    send_checklist_file(chat_id, text)
+    
+    # Затем кнопки выбора цели (отдельным сообщением)
+    kb = {
+        "inline_keyboard": [
+            [{"text": "🏠 Купить", "callback_data": "goal_buy"}],
+            [{"text": "💰 Продать", "callback_data": "goal_sell"}],
+            [{"text": "📊 Инвестировать", "callback_data": "goal_invest"}],
+            [{"text": "🤔 Пока смотрю", "callback_data": "goal_browse"}]
+        ]
+    }
+    send_message(chat_id, "Выберите цель:", reply_markup=kb)
+    
+    logger.info(f"📥 Checklist sent to {chat_id}")
+    return
     
     if data == "goal_buy":
         save_user_state(chat_id, name, username, {'goal': 'buy'})
