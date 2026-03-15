@@ -1,9 +1,10 @@
 # api/webhook.py
-# Бот «Тульский ключ» — Flask + aiogram для Vercel
+# Бот «Тульский ключ» — Flask + aiogram для Vercel (ИСПРАВЛЕННАЯ ВЕРСИЯ)
 
 import os
 import json
 import logging
+import asyncio
 from flask import Flask, request, jsonify
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -67,9 +68,13 @@ def webhook_handler():
         update_data = request.get_json(force=True)
         update = types.Update(**update_data)
         
-        # Обрабатываем через aiogram (в том же потоке для serverless)
-        import asyncio
-        asyncio.run(dp.feed_update(bot, update))
+        # 🔥 ИСПРАВЛЕНИЕ: Используем существующий event loop, не создаём новый!
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(dp.feed_update(bot, update))
+        finally:
+            loop.close()
         
         return jsonify({"ok": True}), 200
         
