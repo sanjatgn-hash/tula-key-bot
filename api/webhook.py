@@ -52,9 +52,6 @@ def answer_callback(callback_query_id):
     except:
         return None
 
-
-# ==================== GOOGLE SHEETS — РАБОЧАЯ ВЕРСИЯ ====================
-
 # ==================== GOOGLE SHEETS — С СОХРАНЕНИЕМ ДЛЯ АНАЛИТИКИ ====================
 
 def get_sheet():
@@ -73,10 +70,23 @@ def get_sheet():
         client = gspread.authorize(creds)
         sheet = client.open_by_key(GOOGLE_SHEET_ID).sheet1
         
-        # Проверяем заголовки
-        headers = sheet.row_values(1)
-        if not headers or headers[0] != 'chat_id':
-            # Создаём заголовки
+        # Проверяем, есть ли заголовки (только первая ячейка A1)
+        try:
+            first_cell = sheet.acell('A1').value
+            logger.info(f"🔍 First cell A1: '{first_cell}'")
+            
+            # Если в A1 уже "chat_id" — заголовки есть
+            if first_cell == 'chat_id':
+                logger.info("✅ Headers already exist")
+            else:
+                # Заголовков нет — создаём
+                logger.warning("⚠️ Headers not found, creating...")
+                headers = ['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at', 'status']
+                sheet.append_row(headers)
+                logger.info("✅ Headers created")
+        except Exception as e:
+            # Если ошибка при чтении A1 — создаём заголовки
+            logger.warning(f"⚠️ Error reading A1: {e}, creating headers...")
             headers = ['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at', 'status']
             sheet.append_row(headers)
             logger.info("✅ Headers created")
