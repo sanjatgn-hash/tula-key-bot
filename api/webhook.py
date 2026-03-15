@@ -1,5 +1,5 @@
 # api/webhook.py
-# Бот «Тульский ключ» — Google Sheets (ИСПРАВЛЕННАЯ ВЕРСИЯ)
+# Бот «Тульский ключ» — Google Sheets (ФИНАЛЬНАЯ ВЕРСИЯ)
 
 import os
 import re
@@ -43,7 +43,8 @@ def send_message(chat_id, text, reply_markup=None):
     except Exception as e:
         logger.error(f"❌ send_message: {e}")
         return None
-        
+
+
 def send_checklist_file(chat_id, caption):
     """Отправляет PDF файл чек-листа с подписью"""
     url = f"{TELEGRAM_API_URL}/sendDocument"
@@ -52,10 +53,7 @@ def send_checklist_file(chat_id, caption):
         "caption": caption,
         "parse_mode": "HTML"
     }
-    
-    # Отправляем файл по URL (Telegram скачает и покажет как вложение)
     data["document"] = CHECKLIST_URL
-    
     try:
         resp = requests.post(url, json=data, timeout=10)
         logger.info(f"📄 Checklist file sent to {chat_id}: {resp.status_code}")
@@ -64,6 +62,7 @@ def send_checklist_file(chat_id, caption):
         logger.error(f"❌ send_checklist_file error: {e}")
         return None
 
+
 def answer_callback(callback_query_id):
     url = f"{TELEGRAM_API_URL}/answerCallbackQuery"
     try:
@@ -71,10 +70,10 @@ def answer_callback(callback_query_id):
     except:
         return None
 
-# ==================== GOOGLE SHEETS — С СОХРАНЕНИЕМ ДЛЯ АНАЛИТИКИ ====================
+
+# ==================== GOOGLE SHEETS ====================
 
 def get_sheet():
-    """Подключение к Google Sheets — БЕЗ дублирования заголовков"""
     try:
         from google.oauth2.service_account import Credentials
         import gspread
@@ -89,48 +88,24 @@ def get_sheet():
         client = gspread.authorize(creds)
         sheet = client.open_by_key(GOOGLE_SHEET_ID).sheet1
         
-        # Проверяем ВСЮ первую строку (не только A1!)
         try:
             first_row = sheet.row_values(1)
-            logger.info(f"🔍 First row: {first_row}")
-            
-            # Проверяем, есть ли правильные заголовки
             if first_row and first_row[0] == 'chat_id' and first_row[1] == 'name':
-                logger.info("✅ Headers already exist — skipping creation")
+                logger.info("✅ Headers exist")
             else:
-                # Заголовков нет или неправильные — создаём
-                logger.warning("⚠️ Headers missing or wrong, creating...")
                 headers = ['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at', 'status']
-                
-                # Очищаем первую строку если там мусор
-                if first_row:
-                    sheet.clear()
-                
                 sheet.append_row(headers)
-                logger.info("✅ Headers created successfully")
-                
+                logger.info("✅ Headers created")
         except Exception as e:
             logger.error(f"❌ Error checking headers: {e}")
-            # Если ошибка — пробуем создать заголовки
-            try:
-                headers = ['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at', 'status']
-                sheet.append_row(headers)
-                logger.info("✅ Headers created (fallback)")
-            except Exception as e2:
-                logger.error(f"❌ Failed to create headers: {e2}")
         
-        logger.info("✅ Google Sheets connected")
         return sheet
-        
     except Exception as e:
-        logger.error(f"❌ Google Sheets connection error: {e}")
-        import traceback
-        logger.error(f"💡 Traceback: {traceback.format_exc()}")
+        logger.error(f"❌ Google Sheets: {e}")
         return None
 
 
 def save_user_state(chat_id, name, username, data):
-    """Сохраняет состояние — ВСЕГДА создаёт НОВУЮ строку"""
     logger.info(f"💾 Saving state for {chat_id}: {data}")
     
     sheet = get_sheet()
@@ -138,18 +113,15 @@ def save_user_state(chat_id, name, username, data):
         return False
     
     try:
-        # Читаем ПОСЛЕДНЮЮ активную заявку этого пользователя (если есть)
         all_values = sheet.get_all_values()
         last_active_row = None
         last_active_data = {}
         
-        # Ищем последнюю строку с status='new' для этого chat_id
-        for i, row in enumerate(all_values[1:], 2):  # Пропускаем заголовки
+        for i, row in enumerate(all_values[1:], 2):
             if len(row) > 0 and str(row[0]) == str(chat_id):
                 status = row[11] if len(row) > 11 else ''
                 if status == 'new':
                     last_active_row = i
-                    # Сохраняем существующие данные
                     last_active_data = {
                         'goal': row[3] if len(row) > 3 else '',
                         'budget': row[4] if len(row) > 4 else '',
@@ -159,43 +131,30 @@ def save_user_state(chat_id, name, username, data):
                         'invest_budget': row[8] if len(row) > 8 else '',
                     }
         
-        # Объединяем существующее с новым
         merged_data = {**last_active_data, **data}
         
         row_data = [
-            str(chat_id),
-            name or '',
-            username or '',
-            merged_data.get('goal', ''),
-            merged_data.get('budget', ''),
-            merged_data.get('deadline', ''),
-            merged_data.get('prop_type', ''),
-            merged_data.get('district', ''),
-            merged_data.get('invest_budget', ''),
-            merged_data.get('phone', ''),
-            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'new'  # Статус по умолчанию
+            str(chat_id), name or '', username or '',
+            merged_data.get('goal', ''), merged_data.get('budget', ''),
+            merged_data.get('deadline', ''), merged_data.get('prop_type', ''),
+            merged_data.get('district', ''), merged_data.get('invest_budget', ''),
+            merged_data.get('phone', ''), datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'new'
         ]
         
         if last_active_row:
-            # Обновляем СУЩЕСТВУЮЩУЮ активную заявку
             sheet.update(f'A{last_active_row}:L{last_active_row}', [row_data])
-            logger.info(f"✅ Updated existing row {last_active_row}")
+            logger.info(f"✅ Updated row {last_active_row}")
         else:
-            # Создаём НОВУЮ заявку
             sheet.append_row(row_data)
             logger.info(f"✅ Created NEW row for {chat_id}")
         
         return True
     except Exception as e:
         logger.error(f"❌ Save error: {e}")
-        import traceback
-        logger.error(f"💡 Traceback: {traceback.format_exc()}")
         return False
 
 
 def get_user_state(chat_id):
-    """Читает ПОСЛЕДНЮЮ активную заявку (status='new')"""
     logger.info(f"📖 Loading state for {chat_id}")
     
     sheet = get_sheet()
@@ -204,14 +163,12 @@ def get_user_state(chat_id):
     
     try:
         all_values = sheet.get_all_values()
-        
-        # Ищем последнюю строку с status='new' для этого chat_id
         last_state = None
-        for row in all_values[1:]:  # Пропускаем заголовки
+        
+        for row in all_values[1:]:
             if len(row) > 0 and str(row[0]) == str(chat_id):
                 status = row[11] if len(row) > 11 else ''
                 if status == 'new':
-                    # Сохраняем последнюю активную заявку
                     last_state = {
                         'chat_id': row[0] if len(row) > 0 else '',
                         'name': row[1] if len(row) > 1 else '',
@@ -232,16 +189,12 @@ def get_user_state(chat_id):
         else:
             logger.info(f"⚠️ No active state found for {chat_id}")
             return None
-            
     except Exception as e:
         logger.error(f"❌ Get state error: {e}")
-        import traceback
-        logger.error(f"💡 Traceback: {traceback.format_exc()}")
         return None
 
 
 def mark_lead_sent(chat_id):
-    """Отмечает ПОСЛЕДНЮЮ активную заявку как отправленную"""
     logger.info(f"📝 Marking lead as sent: {chat_id}")
     
     sheet = get_sheet()
@@ -251,23 +204,20 @@ def mark_lead_sent(chat_id):
     try:
         all_values = sheet.get_all_values()
         
-        # Ищем последнюю строку с status='new'
-        for i, row in enumerate(all_values[1:], 2):  # Пропускаем заголовки
+        for i, row in enumerate(all_values[1:], 2):
             if len(row) > 0 and str(row[0]) == str(chat_id):
                 status = row[11] if len(row) > 11 else ''
                 if status == 'new':
-                    # Обновляем статус и время
-                    sheet.update_cell(i, 12, 'sent')  # Колонка L = status
-                    sheet.update_cell(i, 11, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))  # Колонка K = updated_at
+                    sheet.update_cell(i, 12, 'sent')
+                    sheet.update_cell(i, 11, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
                     logger.info(f"✅ Marked row {i} as sent")
                     return True
         
-        logger.warning(f"⚠️ No active lead found for {chat_id}")
         return False
     except Exception as e:
         logger.error(f"❌ Mark error: {e}")
         return False
-        
+
 
 # ==================== ТЕЛЕФОН ====================
 
@@ -393,31 +343,27 @@ def handle_start(chat_id, name, username):
 def handle_callback(chat_id, callback_id, data, name, username):
     answer_callback(callback_id)
     
-if data == "get_checklist":
-    # Сначала отправляем файл с текстом и гиперссылкой
-    text = (
-        f"🎉 Готово!\n\n"
-        f"📄 <b>Чек-лист «7 ошибок при покупке»</b>\n\n"
-        f"💡 <a href='{CHECKLIST_URL}'>Скачать чек-лист</a> или откройте файл выше 📌\n\n"
-        f"Чтобы я присылал только подходящие варианты, подскажите:"
-    )
-    
-    # Отправляем файл
-    send_checklist_file(chat_id, text)
-    
-    # Затем кнопки выбора цели (отдельным сообщением)
-    kb = {
-        "inline_keyboard": [
-            [{"text": "🏠 Купить", "callback_data": "goal_buy"}],
-            [{"text": "💰 Продать", "callback_data": "goal_sell"}],
-            [{"text": "📊 Инвестировать", "callback_data": "goal_invest"}],
-            [{"text": "🤔 Пока смотрю", "callback_data": "goal_browse"}]
-        ]
-    }
-    send_message(chat_id, "Выберите цель:", reply_markup=kb)
-    
-    logger.info(f"📥 Checklist sent to {chat_id}")
-    return
+    if data == "get_checklist":
+        text = (
+            f"🎉 Готово!\n\n"
+            f"📄 <b>Чек-лист «7 ошибок при покупке»</b>\n\n"
+            f"💡 <a href='{CHECKLIST_URL}'>Скачать чек-лист</a> или откройте файл выше 📌\n\n"
+            f"Чтобы я присылал только подходящие варианты, подскажите:"
+        )
+        send_checklist_file(chat_id, text)
+        
+        kb = {
+            "inline_keyboard": [
+                [{"text": "🏠 Купить", "callback_data": "goal_buy"}],
+                [{"text": "💰 Продать", "callback_data": "goal_sell"}],
+                [{"text": "📊 Инвестировать", "callback_data": "goal_invest"}],
+                [{"text": "🤔 Пока смотрю", "callback_data": "goal_browse"}]
+            ]
+        }
+        send_message(chat_id, "Выберите цель:", reply_markup=kb)
+        
+        logger.info(f"📥 Checklist sent to {chat_id}")
+        return
     
     if data == "goal_buy":
         save_user_state(chat_id, name, username, {'goal': 'buy'})
@@ -462,9 +408,11 @@ if data == "get_checklist":
         return
     
     if data.startswith("invest|"):
-        invest_text = INVEST_MAP.get(parts[1] if len(parts) > 1 else "", "")
-        save_user_state(chat_id, name, username, {'invest_budget': invest_text})
-        send_message(chat_id, f"📈 Расчёт готов!\n\n💬 Хотите обсудить? Напишите ваш номер телефона 👇")
+        parts = data.split("|")
+        if len(parts) == 2:
+            invest_text = INVEST_MAP.get(parts[1], "")
+            save_user_state(chat_id, name, username, {'invest_budget': invest_text})
+            send_message(chat_id, f"📈 Расчёт готов!\n\n💬 Хотите обсудить? Напишите ваш номер телефона 👇")
         return
     
     if data == "faq":
@@ -477,53 +425,29 @@ if data == "get_checklist":
     
     if data == "goal_browse":
         send_message(chat_id, f"✅ Вы в списке!\n\n📄 Чек-лист:\n{CHECKLIST_URL}\n\n📢 Канал:", reply_markup=channel_kb())
+        return
+    
+    logger.info(f"✅ Callback handled: {data}")
 
 
 def handle_message(chat_id, text, name, username):
-    """Обработчик текстовых сообщений"""
-    
     if is_valid_phone(text):
         phone = normalize_phone(text)
         state = get_user_state(chat_id)
         
         if state and state.get('goal'):
-            # Отправляем лид
             send_lead_to_admin(name, phone, chat_id, state)
-            # Отмечаем как отправленный (НЕ удаляем!)
             mark_lead_sent(chat_id)
             logger.info(f"✅ Lead sent and marked for {chat_id}")
         elif ADMIN_ID:
-            # Нет контекста — просто контакт
-            send_message(
-                ADMIN_ID,
-                f"📞 НОВЫЙ КОНТАКТ!\n"
-                f"━━━━━━━━━━━━━━\n"
-                f"👤 Имя: {name}\n"
-                f"📞 Телефон: {phone}\n"
-                f"🆔 ID: {chat_id}\n"
-                f"━━━━━━━━━━━━━━\n"
-                f"⚠️ Контекст неизвестен"
-            )
+            send_message(ADMIN_ID, f"📞 НОВЫЙ КОНТАКТ!\n━━━━━━━━━━━━━━\n👤 {name}\n📞 {phone}\n🆔 {chat_id}\n━━━━━━━━━━━━━━\n⚠️ Контекст неизвестен")
         
-        # Ответ пользователю
-        send_message(
-            chat_id,
-            f"✅ Спасибо, {name}! 🙏\n\n"
-            f"Я получил ваш номер: {phone}\n"
-            f"Свяжусь с вами в течение 2 часов!\n\n"
-            f"А пока — посмотрите кейс: как я сэкономил клиенту 400 000₽ 👇\n"
-            f"{CHANNEL_LINK}",
-        )
-        logger.info(f"📞 Phone received from {chat_id}: {phone}")
+        send_message(chat_id, f"✅ Спасибо, {name}! 🙏\n\nТелефон: {phone}\nСвяжусь в течение 2 часов!\n\n{CHANNEL_LINK}")
+        logger.info(f"📞 Phone from {chat_id}: {phone}")
     else:
-        send_message(
-            chat_id,
-            f"👋 Привет, {name}!\n\n"
-            f"Если у вас есть вопрос — напишите его, я отвечу!\n\n"
-            f"Или выберите действие:",
-            reply_markup=main_menu_kb()
-        )
-        
+        send_message(chat_id, f"👋 Привет! Если есть вопрос — напишите, отвечу!\n\nИли выберите действие:", reply_markup=main_menu_kb())
+
+
 def handle_update(update_data):
     if "message" in update_data:
         m = update_data["message"]
