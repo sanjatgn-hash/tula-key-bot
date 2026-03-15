@@ -53,7 +53,7 @@ def answer_callback(callback_query_id):
         return None
 
 
-# ==================== GOOGLE SHEETS — ПРОСТАЯ ВЕРСИЯ ====================
+# ==================== GOOGLE SHEETS — РАБОЧАЯ ВЕРСИЯ ====================
 
 def get_sheet():
     """Подключение к Google Sheets"""
@@ -74,7 +74,6 @@ def get_sheet():
         # Проверяем заголовки
         headers = sheet.row_values(1)
         if not headers:
-            # Создаём заголовки если их нет
             sheet.append_row(['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at'])
             logger.info("✅ Headers created")
         
@@ -94,7 +93,6 @@ def save_user_state(chat_id, name, username, data):
         return False
     
     try:
-        # Получаем ВСЕ значения (надёжнее чем get_all_records)
         all_values = sheet.get_all_values()
         
         # Ищем существующую запись
@@ -119,7 +117,8 @@ def save_user_state(chat_id, name, username, data):
         ]
         
         if existing_row:
-            sheet.update_row(existing_row, row_data)
+            # Обновляем через update() — правильный метод!
+            sheet.update(f'A{existing_row}:K{existing_row}', [row_data])
             logger.info(f"✅ Updated row {existing_row}")
         else:
             sheet.append_row(row_data)
@@ -142,10 +141,8 @@ def get_user_state(chat_id):
     try:
         all_values = sheet.get_all_values()
         
-        # Пропускаем заголовки (первая строка)
-        for row in all_values[1:]:
+        for row in all_values[1:]:  # Пропускаем заголовки
             if len(row) > 0 and str(row[0]) == str(chat_id):
-                # Преобразуем в словарь
                 state = {
                     'chat_id': row[0] if len(row) > 0 else '',
                     'name': row[1] if len(row) > 1 else '',
