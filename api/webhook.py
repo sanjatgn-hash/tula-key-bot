@@ -1,5 +1,5 @@
 # api/webhook.py
-# Бот «Тульский ключ» — Flask + requests (ОДИН ФАЙЛ, БЕЗ ИМПОРТОВ ИЗ lib/)
+# Бот «Тульский ключ» — с обработкой телефонов
 
 import os
 import json
@@ -7,25 +7,21 @@ import logging
 import requests
 from flask import Flask, request, jsonify
 
-# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# ==================== ИНИЦИАЛИЗАЦИЯ ====================
 app = Flask(__name__)
 
-# Загрузка и очистка токена
+# Загрузка токена
 RAW_TOKEN = os.getenv("BOT_TOKEN", "")
 BOT_TOKEN = "".join(RAW_TOKEN.split())
 
-# Загрузка других переменных
 CHECKLIST_URL = os.getenv("CHECKLIST_URL", "https://t.me/tula_key_bot")
 CHANNEL_LINK = os.getenv("CHANNEL_LINK", "https://t.me/tula_key_channel")
 ADMIN_ID = os.getenv("ADMIN_ID", "")
-GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "")
 
 if BOT_TOKEN:
     logger.info(f"✅ BOT_TOKEN loaded: {BOT_TOKEN[:10]}...")
@@ -35,10 +31,9 @@ else:
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 
-# ==================== TELEGRAM API ФУНКЦИИ ====================
+# ==================== TELEGRAM API ====================
 
 def send_message(chat_id, text, reply_markup=None):
-    """Отправка сообщения через Telegram API"""
     url = f"{TELEGRAM_API_URL}/sendMessage"
     data = {
         "chat_id": chat_id,
@@ -57,12 +52,8 @@ def send_message(chat_id, text, reply_markup=None):
 
 
 def answer_callback(callback_query_id, text=None):
-    """Ответ на callback query"""
     url = f"{TELEGRAM_API_URL}/answerCallbackQuery"
-    data = {
-        "callback_query_id": callback_query_id,
-        "show_alert": False
-    }
+    data = {"callback_query_id": callback_query_id, "show_alert": False}
     if text:
         data["text"] = text
     
@@ -145,7 +136,6 @@ def invest_budget_kb():
 # ==================== ОБРАБОТЧИКИ ====================
 
 def handle_start(chat_id, name):
-    """Обработчик /start"""
     text = (
         f"🔑 Привет, {name}! Я — помощник «Тульского ключа»\n\n"
         f"Помогаю найти квартиру в Туле без стресса и переплат 🏠\n\n"
@@ -159,14 +149,13 @@ def handle_start(chat_id, name):
 def handle_callback(chat_id, callback_id, data, name):
     """Обработчик callback queries"""
     
-    # Сначала отвечаем на callback (обязательно!)
     answer_callback(callback_id)
     
     if data == "get_checklist":
         text = (
             f"🎉 Готово!\n\n"
-            f"📄 Чек-лист «7 ошибок при покупке»:\n{CHECKLIST_URL}\n\n"
-            f"💡 Совет: сохраните ссылку в «Избранное» 📌\n\n"
+            f"📄 Чек-лист:\n{CHECKLIST_URL}\n\n"
+            f"💡 Сохраните ссылку в «Избранное» 📌\n\n"
             f"Чтобы я присылал только подходящие варианты, подскажите:"
         )
         kb = {
@@ -183,6 +172,8 @@ def handle_callback(chat_id, callback_id, data, name):
     elif data == "goal_buy":
         text = f"{name}, понял! 🔑 Чтобы подборка была точной:\n\n1️⃣ Ваш бюджет?"
         send_message(chat_id, text, reply_markup=budget_kb())
+        # Сохраняем состояние в БД (пока просто лог)
+        logger.info(f"💾 User {chat_id} started BUY flow")
     
     elif data.startswith("budget_"):
         text = "2️⃣ Когда планируете сделку?"
@@ -190,21 +181,22 @@ def handle_callback(chat_id, callback_id, data, name):
     
     elif data.startswith("deadline_"):
         if data == "deadline_urgent":
-            text = f"🔥 Вижу, вы ищете серьёзно! Напишите ваш номер телефона:"
+            text = f"🔥 Вижу, вы ищете серьёзно!\n\n📞 Напишите ваш номер телефона:\n(например: +79991234567)"
         else:
-            text = f"✅ Отлично! Буду присылать лучшие варианты 📬"
+            text = f"✅ Отлично! Буду присылать лучшие варианты 📬\n\nЕсли захотите срочную подборку — напишите «ХОЧУ ПОДБОРКУ»"
         send_message(chat_id, text)
     
     elif data == "goal_sell":
         text = f"{name}, помогу выгодно продать недвижимость в Туле 🏡\n\n1️⃣ Тип объекта?"
         send_message(chat_id, text, reply_markup=property_type_kb())
+        logger.info(f"💾 User {chat_id} started SELL flow")
     
     elif data.startswith("type_"):
         text = "2️⃣ Район Тулы?"
         send_message(chat_id, text, reply_markup=district_kb())
     
     elif data.startswith("dist_"):
-        text = "✅ Принято! Напишите ваш номер телефона для связи:"
+        text = "✅ Отлично! 🏡 Я подготовлю:\n• Бесплатную оценку\n• План продажи\n• Чек-лист «Как подготовить квартиру»\n\n📞 Напишите ваш номер телефона:\n(например: +79991234567)"
         send_message(chat_id, text)
     
     elif data == "goal_invest":
@@ -256,10 +248,51 @@ def handle_callback(chat_id, callback_id, data, name):
     logger.info(f"✅ Callback handled: {data}")
 
 
+def handle_message(chat_id, text, name):
+    """Обработчик текстовых сообщений (телефоны, вопросы)"""
+    
+    # Проверка на телефон (простая валидация)
+    if text and (text.startswith("+7") or text.startswith("8")) and len(text.replace(" ", "").replace("-", "")) >= 10:
+        # Это телефон!
+        send_message(
+            chat_id,
+            f"✅ Спасибо, {name}! 🙏\n\n"
+            f"Я получил ваш номер: {text}\n"
+            f"Свяжусь с вами в течение 2 часов!\n\n"
+            f"А пока — посмотрите кейс: как я сэкономил клиенту 400 000₽ 👇\n"
+            f"{CHANNEL_LINK}",
+        )
+        logger.info(f"📞 Phone received from {chat_id}: {text}")
+        
+        # Отправка уведомления админу (если ADMIN_ID задан)
+        if ADMIN_ID:
+            try:
+                send_message(
+                    ADMIN_ID,
+                    f"🔥 НОВЫЙ ЛИД!\n\n"
+                    f"👤 Имя: {name}\n"
+                    f"📞 Телефон: {text}\n"
+                    f"🆔 ID: {chat_id}"
+                )
+                logger.info(f"📩 Notification sent to admin {ADMIN_ID}")
+            except Exception as e:
+                logger.error(f"❌ Failed to notify admin: {e}")
+    else:
+        # Обычное сообщение
+        send_message(
+            chat_id,
+            f"👋 Привет, {name}!\n\n"
+            f"Если у вас есть вопрос — напишите его, я отвечу!\n\n"
+            f"Или выберите действие:",
+            reply_markup=main_menu_kb()
+        )
+
+
 def handle_update(update_data):
     """Главный обработчик обновлений"""
     update = update_data
     
+    # Обработка сообщений (текст)
     if "message" in update:
         message = update["message"]
         chat_id = message["chat"]["id"]
@@ -268,7 +301,10 @@ def handle_update(update_data):
         
         if text == "/start":
             handle_start(chat_id, name)
+        else:
+            handle_message(chat_id, text, name)
     
+    # Обработка callback queries (кнопки)
     elif "callback_query" in update:
         callback = update["callback_query"]
         chat_id = callback["message"]["chat"]["id"]
@@ -279,18 +315,16 @@ def handle_update(update_data):
         handle_callback(chat_id, callback_id, data, name)
 
 
-# ==================== РОУТЫ FLASK ====================
+# ==================== РОУТЫ ====================
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
     logger.info("🏥 Health check requested")
     return "OK", 200
 
 
 @app.route(f'/webhook/{BOT_TOKEN}', methods=['POST']) if BOT_TOKEN else None
 def webhook_handler():
-    """Обработчик webhook от Telegram"""
     if not BOT_TOKEN:
         logger.error("❌ BOT_TOKEN not set")
         return jsonify({"error": "Bot token not set"}), 500
@@ -298,11 +332,9 @@ def webhook_handler():
     try:
         logger.info("📬 Webhook called!")
         
-        # Получаем обновление от Telegram
         update_data = request.get_json(force=True)
         logger.info(f"📩 Update received: {update_data.get('update_id')}")
         
-        # Обрабатываем
         handle_update(update_data)
         
         return jsonify({"ok": True}), 200
@@ -311,8 +343,6 @@ def webhook_handler():
         logger.error(f"❌ Webhook error: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-
-# ==================== ЗАПУСК ====================
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000)))
