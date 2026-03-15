@@ -3,24 +3,17 @@
   "builds": [
     {
       "src": "api/webhook.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "50mb",
-        "runtime": "python3.10"
-      }
+      "use": "@vercel/python"
     }
   ],
   "routes": [
     {
-      "src": "/webhook/(.*)",
+      "src": "/health",
       "dest": "api/webhook.py"
     },
     {
-      "src": "/health",
+      "src": "/webhook/([^/]+)",
       "dest": "api/webhook.py"
     }
-  ],
-  "env": {
-    "PYTHON_VERSION": "3.10"
-  }
+  ]
 }
