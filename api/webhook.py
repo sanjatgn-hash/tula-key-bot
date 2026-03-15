@@ -1,5 +1,5 @@
 # api/webhook.py
-# Бот «Тульский ключ» — с умной валидацией телефона и сегментацией лидов
+# Бот «Тульский ключ» — сегментация через callback_data (работает в serverless!)
 
 import os
 import re
@@ -69,64 +69,33 @@ def answer_callback(callback_query_id, text=None):
 # ==================== ВАЛИДАЦИЯ ТЕЛЕФОНА ====================
 
 def is_valid_phone(text):
-    """
-    Проверяет, похож ли текст на номер телефона.
-    Поддерживает форматы:
-    • +7 999 123-45-67
-    • 8-999-123-45-67
-    • 79991234567
-    • 9991234567
-    • +7(999)123-45-67
-    """
     if not text:
         return False
-    
-    # Удаляем ВСЕ нецифровые символы кроме + в начале
     cleaned = re.sub(r'[^\d+]', '', text)
-    
-    # Убираем + если он не в начале
     if cleaned.startswith('++'):
         cleaned = '+' + cleaned.lstrip('+')
     
-    # Паттерны для проверки:
-    # 1. +7 + 10 цифр = 11 символов
-    # 2. 7 + 10 цифр = 11 символов  
-    # 3. 8 + 10 цифр = 11 символов
-    # 4. 10 цифр (без кода страны)
-    
     patterns = [
-        r'^\+7\d{10}$',      # +79991234567
-        r'^7\d{10}$',        # 79991234567
-        r'^8\d{10}$',        # 89991234567
-        r'^\d{10}$',         # 9991234567
-        r'^\d{11}$',         # 79991234567 без +
+        r'^\+7\d{10}$', r'^7\d{10}$', r'^8\d{10}$', r'^\d{10}$', r'^\d{11}$',
     ]
-    
     for pattern in patterns:
         if re.match(pattern, cleaned):
             return True
-    
     return False
 
 
 def normalize_phone(text):
-    """Приводит телефон к единому формату: +79991234567"""
     cleaned = re.sub(r'[^\d+]', '', text)
-    
-    # Если начинается с 8 — меняем на +7
     if cleaned.startswith('8') and len(cleaned) == 11:
         cleaned = '+7' + cleaned[1:]
-    # Если начинается с 7 и 11 цифр — добавляем +
     elif cleaned.startswith('7') and len(cleaned) == 11 and not cleaned.startswith('+'):
         cleaned = '+' + cleaned
-    # Если 10 цифр — добавляем +7
     elif cleaned.isdigit() and len(cleaned) == 10:
         cleaned = '+7' + cleaned
-    
     return cleaned
 
 
-# ==================== КЛАВИАТУРЫ ====================
+# ==================== КЛАВИАТУРЫ С КОНТЕКСТОМ ====================
 
 def main_menu_kb():
     return {
@@ -141,93 +110,119 @@ def main_menu_kb():
     }
 
 
-def budget_kb():
+def budget_kb(goal):
+    """Кнопки бюджета с кодированием цели"""
     return {
         "inline_keyboard": [
-            [{"text": "до 3 млн", "callback_data": "budget_3m"},
-             {"text": "3–5 млн", "callback_data": "budget_5m"}],
-            [{"text": "5+ млн", "callback_data": "budget_5plus"},
-             {"text": "Нужна помощь", "callback_data": "budget_help"}]
+            [{"text": "до 3 млн", "callback_data": f"{goal}|b3"}],
+            [{"text": "3–5 млн", "callback_data": f"{goal}|b5"}],
+            [{"text": "5+ млн", "callback_data": f"{goal}|b5p"}],
+            [{"text": "Нужна помощь", "callback_data": f"{goal}|bhelp"}]
         ]
     }
 
 
-def deadline_kb():
+def deadline_kb(goal, budget_code):
+    """Кнопки срока с кодированием цели и бюджета"""
     return {
         "inline_keyboard": [
-            [{"text": "🔥 Срочно", "callback_data": "deadline_urgent"}],
-            [{"text": "📅 1-3 мес", "callback_data": "deadline_month"}],
-            [{"text": "👀 Просто смотрю", "callback_data": "deadline_look"}]
+            [{"text": "🔥 Срочно", "callback_data": f"{goal}|{budget_code}|urgent"}],
+            [{"text": "📅 1-3 мес", "callback_data": f"{goal}|{budget_code}|month"}],
+            [{"text": "👀 Просто смотрю", "callback_data": f"{goal}|{budget_code}|look"}]
         ]
     }
 
 
-def property_type_kb():
+def property_type_kb(goal):
     return {
         "inline_keyboard": [
-            [{"text": "Квартира", "callback_data": "type_flat"},
-             {"text": "Дом", "callback_data": "type_house"}],
-            [{"text": "Комната", "callback_data": "type_room"},
-             {"text": "Другое", "callback_data": "type_other"}]
+            [{"text": "Квартира", "callback_data": f"{goal}|flat"}],
+            [{"text": "Дом", "callback_data": f"{goal}|house"}],
+            [{"text": "Комната", "callback_data": f"{goal}|room"}],
+            [{"text": "Другое", "callback_data": f"{goal}|other"}]
         ]
     }
 
 
-def district_kb():
+def district_kb(goal, type_code):
     return {
         "inline_keyboard": [
-            [{"text": "Центральный", "callback_data": "dist_center"},
-             {"text": "Заречье", "callback_data": "dist_zarechye"}],
-            [{"text": "Пролетарский", "callback_data": "dist_proletarsky"},
-             {"text": "Любой", "callback_data": "dist_any"}]
+            [{"text": "Центральный", "callback_data": f"{goal}|{type_code}|center"}],
+            [{"text": "Заречье", "callback_data": f"{goal}|{type_code}|zarechye"}],
+            [{"text": "Пролетарский", "callback_data": f"{goal}|{type_code}|proletarsky"}],
+            [{"text": "Любой", "callback_data": f"{goal}|{type_code}|any"}]
         ]
     }
 
 
-def invest_budget_kb():
+def invest_budget_kb(goal):
     return {
         "inline_keyboard": [
-            [{"text": "до 2 млн", "callback_data": "invest_2m"}],
-            [{"text": "2–5 млн", "callback_data": "invest_5m"}],
-            [{"text": "5+ млн", "callback_data": "invest_5plus"}]
+            [{"text": "до 2 млн", "callback_data": f"{goal}|i2"}],
+            [{"text": "2–5 млн", "callback_data": f"{goal}|i5"}],
+            [{"text": "5+ млн", "callback_data": f"{goal}|i5p"}]
         ]
     }
+
+
+# ==================== МАППИНГИ ДЛЯ ЧЕЛОВЕЧЕСКОГО ЧТЕНИЯ ====================
+
+BUDGET_MAP = {
+    "b3": "до 3 млн", "b5": "3–5 млн", "b5p": "5+ млн", "bhelp": "Нужна помощь"
+}
+DEADLINE_MAP = {
+    "urgent": "🔥 Срочно", "month": "📅 1-3 месяца", "look": "👀 Пока присматриваюсь"
+}
+TYPE_MAP = {
+    "flat": "Квартира", "house": "Дом", "room": "Комната", "other": "Другое"
+}
+DISTRICT_MAP = {
+    "center": "Центральный", "zarechye": "Заречье", 
+    "proletarsky": "Пролетарский", "any": "Любой"
+}
+INVEST_MAP = {
+    "i2": "до 2 млн", "i5": "2–5 млн", "i5p": "5+ млн"
+}
+GOAL_MAP = {
+    "buy": ("🏠", "Покупка"),
+    "sell": ("💰", "Продажа"),
+    "invest": ("📊", "Инвестиции")
+}
 
 
 # ==================== ОТПРАВКА ЛИДА АДМИНУ ====================
 
-def send_lead_to_admin(name, phone, user_data):
+def send_lead_to_admin(name, phone, chat_id, goal_code, context):
     """Отправляет сегментированный лид админу"""
     if not ADMIN_ID:
         return
     
-    # Формируем текст лида
-    goal_emoji = "🏠" if user_data.get('goal') == 'buy' else "💰" if user_data.get('goal') == 'sell' else "📊"
+    emoji, goal_text = GOAL_MAP.get(goal_code, ("❓", "Неизвестно"))
     
     lines = [
-        f"🔥 НОВЫЙ ЛИД | {goal_emoji} {user_data.get('goal_text', '')}",
+        f"🔥 НОВЫЙ ЛИД | {emoji} {goal_text}",
         f"━━━━━━━━━━━━━━",
         f"👤 Имя: {name}",
         f"📞 Телефон: {phone}",
-        f"🆔 ID: {user_data.get('chat_id', '')}",
+        f"🆔 ID: {chat_id}",
     ]
     
-    # Добавляем параметры в зависимости от цели
-    if user_data.get('goal') == 'buy':
-        if user_data.get('budget'):
-            lines.append(f"💰 Бюджет: {user_data['budget']}")
-        if user_data.get('deadline'):
-            lines.append(f"⏰ Срок: {user_data['deadline']}")
+    # Добавляем контекст в зависимости от цели
+    if goal_code == "buy":
+        if context.get("budget"):
+            lines.append(f"💰 Бюджет: {context['budget']}")
+        if context.get("deadline"):
+            lines.append(f"⏰ Срок: {context['deadline']}")
     
-    elif user_data.get('goal') == 'sell':
-        if user_data.get('prop_type'):
-            lines.append(f"🏠 Тип: {user_data['prop_type']}")
-        if user_data.get('district'):
-            lines.append(f"📍 Район: {user_data['district']}")
+    elif goal_code == "sell":
+        if context.get("prop_type"):
+            lines.append(f"🏠 Тип: {context['prop_type']}")
+        if context.get("district"):
+            lines.append(f"📍 Район: {context['district']}")
     
-    elif user_data.get('goal') == 'invest':
-        if user_data.get('invest_budget'):
-            lines.append(f"💵 Бюджет: {user_data['invest_budget']}")
+    elif goal_code == "invest":
+        if context.get("invest_budget"):
+            lines.append(f"💵 Бюджет: {context['invest_budget']}")
     
     lines.append("━━━━━━━━━━━━━━")
     
@@ -235,7 +230,7 @@ def send_lead_to_admin(name, phone, user_data):
     
     try:
         send_message(ADMIN_ID, text)
-        logger.info(f"📩 Lead notification sent to admin {ADMIN_ID}")
+        logger.info(f"📩 Lead sent to admin: {goal_text} | {name} | {phone}")
     except Exception as e:
         logger.error(f"❌ Failed to notify admin: {e}")
 
@@ -253,11 +248,12 @@ def handle_start(chat_id, name):
     logger.info(f"📩 /start sent to {chat_id}")
 
 
-def handle_callback(chat_id, callback_id, data, name, user_state):
-    """Обработчик callback queries с сохранением состояния"""
+def handle_callback(chat_id, callback_id, data, name):
+    """Обработчик callback queries с сегментацией через callback_data"""
     
     answer_callback(callback_id)
     
+    # ==================== ГЛАВНОЕ МЕНЮ ====================
     if data == "get_checklist":
         text = (
             f"🎉 Готово!\n\n"
@@ -275,38 +271,99 @@ def handle_callback(chat_id, callback_id, data, name, user_state):
         }
         send_message(chat_id, text, reply_markup=kb)
         logger.info(f"📥 Checklist sent to {chat_id}")
+        return
     
     # ==================== ПОКУПКА ====================
-    elif data == "goal_buy":
-        user_state['goal'] = 'buy'
-        user_state['goal_text'] = 'Покупка'
+    if data == "goal_buy":
         text = f"{name}, понял! 🔑 Чтобы подборка была точной:\n\n1️⃣ Ваш бюджет?"
-        send_message(chat_id, text, reply_markup=budget_kb())
+        send_message(chat_id, text, reply_markup=budget_kb("buy"))
         logger.info(f"💾 User {chat_id} started BUY flow")
+        return
     
-    elif data.startswith("budget_"):
-        budget_map = {
-            "budget_3m": "до 3 млн",
-            "budget_5m": "3–5 млн",
-            "budget_5plus": "5+ млн",
-            "budget_help": "Нужна помощь"
-        }
-        user_state['budget'] = budget_map.get(data, "")
-        text = "2️⃣ Когда планируете сделку?"
-        send_message(chat_id, text, reply_markup=deadline_kb())
-    
-    elif data.startswith("deadline_"):
-        deadline_map = {
-            "deadline_urgent": "🔥 Срочно",
-            "deadline_month": "📅 1-3 месяца",
-            "deadline_look": "👀 Пока присматриваюсь"
-        }
-        user_state['deadline'] = deadline_map.get(data, "")
+    if data.startswith("buy|"):
+        parts = data.split("|")
         
-        if data == "deadline_urgent":
-            # 🔥 Горячий лид — просим телефон
+        # buy|b3 → выбор бюджета
+        if len(parts) == 2 and parts[1].startswith("b"):
+            budget_code = parts[1]
+            budget_text = BUDGET_MAP.get(budget_code, "")
+            text = f"2️⃣ Когда планируете сделку?"
+            send_message(chat_id, text, reply_markup=deadline_kb("buy", budget_code))
+            logger.info(f"💾 User {chat_id} selected budget: {budget_text}")
+            return
+        
+        # buy|b3|urgent → выбор срока + горячий лид
+        if len(parts) == 3:
+            budget_code = parts[1]
+            deadline_code = parts[2]
+            budget_text = BUDGET_MAP.get(budget_code, "")
+            deadline_text = DEADLINE_MAP.get(deadline_code, "")
+            
+            if deadline_code == "urgent":
+                # 🔥 Горячий лид — отправляем уведомление и просим телефон
+                context = {"budget": budget_text, "deadline": deadline_text}
+                # Отправляем лид СЕЙЧАС (без телефона, добавим потом)
+                send_lead_to_admin(name, "⏳ Ожидается", chat_id, "buy", context)
+                
+                text = (
+                    f"🔥 Вижу, вы ищете серьёзно!\n\n"
+                    f"📞 Напишите ваш номер телефона в любом формате:\n"
+                    f"• +7 999 123-45-67\n"
+                    f"• 8-999-123-45-67\n"
+                    f"• 9991234567\n"
+                    f"Я свяжусь с вами в течение 2 часов!"
+                )
+                send_message(chat_id, text)
+                logger.info(f"🔥 HOT LEAD: buy | {budget_text} | {deadline_text} | {name}")
+            else:
+                # 📅 Не срочно — показываем чек-лист и канал
+                text = (
+                    f"✅ Понял, вы пока присматриваетесь!\n\n"
+                    f"📄 Если еще не скачали — получите чек-лист «7 ошибок при покупке»:\n"
+                    f"{CHECKLIST_URL}\n\n"
+                    f"📢 Подпишитесь на канал «Тульский ключ» — там лучшие предложения и новости:\n"
+                    f"{CHANNEL_LINK}\n\n"
+                    f"Когда будете готовы — просто напишите «ХОЧУ ПОДБОРКУ» или ваш номер телефона 🔑"
+                )
+                send_message(chat_id, text)
+                logger.info(f"📬 Warm lead: buy | {budget_text} | {deadline_text}")
+            return
+    
+    # ==================== ПРОДАЖА ====================
+    if data == "goal_sell":
+        text = f"{name}, помогу выгодно продать недвижимость в Туле 🏡\n\n1️⃣ Тип объекта?"
+        send_message(chat_id, text, reply_markup=property_type_kb("sell"))
+        logger.info(f"💾 User {chat_id} started SELL flow")
+        return
+    
+    if data.startswith("sell|"):
+        parts = data.split("|")
+        
+        # sell|flat → выбор типа
+        if len(parts) == 2:
+            type_code = parts[1]
+            type_text = TYPE_MAP.get(type_code, "")
+            text = "2️⃣ Район Тулы?"
+            send_message(chat_id, text, reply_markup=district_kb("sell", type_code))
+            logger.info(f"💾 User {chat_id} selected type: {type_text}")
+            return
+        
+        # sell|flat|center → выбор района + лид
+        if len(parts) == 3:
+            type_code = parts[1]
+            district_code = parts[2]
+            type_text = TYPE_MAP.get(type_code, "")
+            district_text = DISTRICT_MAP.get(district_code, "")
+            
+            # 🔥 Отправляем лид СЕЙЧАС
+            context = {"prop_type": type_text, "district": district_text}
+            send_lead_to_admin(name, "⏳ Ожидается", chat_id, "sell", context)
+            
             text = (
-                f"🔥 Вижу, вы ищете серьёзно!\n\n"
+                f"✅ Отлично! 🏡 Я подготовлю:\n"
+                f"• Бесплатную оценку рыночной стоимости\n"
+                f"• План продажи с прогнозом сроков\n"
+                f"• Чек-лист «Как подготовить квартиру к продаже»\n\n"
                 f"📞 Напишите ваш номер телефона в любом формате:\n"
                 f"• +7 999 123-45-67\n"
                 f"• 8-999-123-45-67\n"
@@ -314,99 +371,49 @@ def handle_callback(chat_id, callback_id, data, name, user_state):
                 f"Я свяжусь с вами в течение 2 часов!"
             )
             send_message(chat_id, text)
-            user_state['waiting_for_phone'] = True
-        else:
-            # 📅 Не срочно — показываем чек-лист и канал
-            text = (
-                f"✅ Понял, вы пока присматриваетесь!\n\n"
-                f"📄 Если еще не скачали — получите чек-лист «7 ошибок при покупке»:\n"
-                f"{CHECKLIST_URL}\n\n"
-                f"📢 Подпишитесь на канал «Тульский ключ» — там лучшие предложения и новости:\n"
-                f"{CHANNEL_LINK}\n\n"
-                f"Когда будете готовы — просто напишите «ХОЧУ ПОДБОРКУ» или ваш номер телефона 🔑"
-            )
-            send_message(chat_id, text)
-            logger.info(f"📬 Warm lead: {chat_id} — not urgent")
-    
-    # ==================== ПРОДАЖА ====================
-    elif data == "goal_sell":
-        user_state['goal'] = 'sell'
-        user_state['goal_text'] = 'Продажа'
-        text = f"{name}, помогу выгодно продать недвижимость в Туле 🏡\n\n1️⃣ Тип объекта?"
-        send_message(chat_id, text, reply_markup=property_type_kb())
-        logger.info(f"💾 User {chat_id} started SELL flow")
-    
-    elif data.startswith("type_"):
-        type_map = {
-            "type_flat": "Квартира",
-            "type_house": "Дом",
-            "type_room": "Комната",
-            "type_other": "Другое"
-        }
-        user_state['prop_type'] = type_map.get(data, "")
-        text = "2️⃣ Район Тулы?"
-        send_message(chat_id, text, reply_markup=district_kb())
-    
-    elif data.startswith("dist_"):
-        district_map = {
-            "dist_center": "Центральный",
-            "dist_zarechye": "Заречье",
-            "dist_proletarsky": "Пролетарский",
-            "dist_any": "Любой"
-        }
-        user_state['district'] = district_map.get(data, "")
-        
-        text = (
-            f"✅ Отлично! 🏡 Я подготовлю:\n"
-            f"• Бесплатную оценку рыночной стоимости\n"
-            f"• План продажи с прогнозом сроков\n"
-            f"• Чек-лист «Как подготовить квартиру к продаже»\n\n"
-            f"📞 Напишите ваш номер телефона в любом формате:\n"
-            f"• +7 999 123-45-67\n"
-            f"• 8-999-123-45-67\n"
-            f"• 9991234567\n"
-            f"Я свяжусь с вами в течение 2 часов!"
-        )
-        send_message(chat_id, text)
-        user_state['waiting_for_phone'] = True
+            logger.info(f"🔥 HOT LEAD: sell | {type_text} | {district_text} | {name}")
+            return
     
     # ==================== ИНВЕСТИЦИИ ====================
-    elif data == "goal_invest":
-        user_state['goal'] = 'invest'
-        user_state['goal_text'] = 'Инвестиции'
+    if data == "goal_invest":
         text = "📊 Калькулятор инвестора в недвижимость Тулы\n\nВыберите бюджет для расчёта:"
-        send_message(chat_id, text, reply_markup=invest_budget_kb())
+        send_message(chat_id, text, reply_markup=invest_budget_kb("invest"))
+        return
     
-    elif data.startswith("invest_"):
-        invest_map = {
-            "invest_2m": "до 2 млн",
-            "invest_5m": "2–5 млн",
-            "invest_5plus": "5+ млн"
-        }
-        user_state['invest_budget'] = invest_map.get(data, "")
+    if data.startswith("invest|"):
+        parts = data.split("|")
         
-        calc = {
-            "invest_2m": {"price": "2 000 000", "downpayment": "400 000", "monthly": "~18 000", "rent": "~15 000", "cashflow": "-3 000", "roi": "~8%"},
-            "invest_5m": {"price": "5 000 000", "downpayment": "1 000 000", "monthly": "~45 000", "rent": "~35 000", "cashflow": "-10 000", "roi": "~10%"},
-            "invest_5plus": {"price": "8 000 000+", "downpayment": "1 600 000+", "monthly": "~72 000+", "rent": "~55 000+", "cashflow": "-17 000+", "roi": "~12%"}
-        }
-        c = calc.get(data, calc["invest_2m"])
-        text = (
-            f"📈 Результаты расчёта:\n\n"
-            f"🏢 Стоимость: {c['price']} ₽\n"
-            f"💰 Первоначальный взнос: {c['downpayment']} ₽\n"
-            f"📉 Платёж: {c['monthly']} ₽/мес\n"
-            f"💵 Аренда: {c['rent']} ₽/мес\n"
-            f"📦 Чистыми: {c['cashflow']} ₽/мес\n"
-            f"📈 ROI: {c['roi']}\n\n"
-            f"⚠️ Это ориентировочный расчёт.\n\n"
-            f"💬 Хотите обсудить стратегию? Напишите ваш номер телефона 👇"
-        )
-        send_message(chat_id, text)
-        user_state['waiting_for_phone'] = True
+        if len(parts) == 2:
+            invest_code = parts[1]
+            invest_text = INVEST_MAP.get(invest_code, "")
+            
+            calc = {
+                "i2": {"price": "2 000 000", "downpayment": "400 000", "monthly": "~18 000", "rent": "~15 000", "cashflow": "-3 000", "roi": "~8%"},
+                "i5": {"price": "5 000 000", "downpayment": "1 000 000", "monthly": "~45 000", "rent": "~35 000", "cashflow": "-10 000", "roi": "~10%"},
+                "i5p": {"price": "8 000 000+", "downpayment": "1 600 000+", "monthly": "~72 000+", "rent": "~55 000+", "cashflow": "-17 000+", "roi": "~12%"}
+            }
+            c = calc.get(invest_code, calc["i2"])
+            text = (
+                f"📈 Результаты расчёта:\n\n"
+                f"🏢 Стоимость: {c['price']} ₽\n"
+                f"💰 Первоначальный взнос: {c['downpayment']} ₽\n"
+                f"📉 Платёж: {c['monthly']} ₽/мес\n"
+                f"💵 Аренда: {c['rent']} ₽/мес\n"
+                f"📦 Чистыми: {c['cashflow']} ₽/мес\n"
+                f"📈 ROI: {c['roi']}\n\n"
+                f"⚠️ Это ориентировочный расчёт.\n\n"
+                f"💬 Хотите обсудить стратегию? Напишите ваш номер телефона 👇"
+            )
+            send_message(chat_id, text)
+            
+            # 🔥 Отправляем лид для инвестиций
+            context = {"invest_budget": invest_text}
+            send_lead_to_admin(name, "⏳ Ожидается", chat_id, "invest", context)
+            logger.info(f"🔥 LEAD: invest | {invest_text} | {name}")
+            return
     
     # ==================== FAQ И ДРУГОЕ ====================
-    elif data == "faq":
+    if data == "faq":
         text = (
             f"💬 Частые вопросы:\n\n"
             f"❓ Какая комиссия?\n"
@@ -417,16 +424,18 @@ def handle_callback(chat_id, callback_id, data, name, user_state):
             f"→ Проверяю юридическую чистоту, историю, обременения. Полный отчёт — перед сделкой ✅"
         )
         send_message(chat_id, text)
+        return
     
-    elif data == "referral":
+    if data == "referral":
         text = (
             f"🤝 Приглашайте — получайте 15 000₽\n\n"
             f"Ваша ссылка:\n`https://t.me/tula_key_support_bot`\n\n"
             f"Отправьте другу — он получит чек-лист, а вы бонус после сделки! 💰"
         )
         send_message(chat_id, text)
+        return
     
-    elif data == "goal_browse":
+    if data == "goal_browse":
         text = (
             f"✅ Вы в списке рассылки!\n\n"
             f"📄 Пока ждёте — скачайте чек-лист «7 ошибок при покупке»:\n"
@@ -435,56 +444,53 @@ def handle_callback(chat_id, callback_id, data, name, user_state):
             f"{CHANNEL_LINK}"
         )
         send_message(chat_id, text)
+        return
     
-    logger.info(f"✅ Callback handled: {data} | State: {user_state}")
+    logger.info(f"✅ Callback handled: {data}")
 
 
-def handle_message(chat_id, text, name, user_state):
-    """Обработчик текстовых сообщений (телефоны, вопросы)"""
+def handle_message(chat_id, text, name):
+    """Обработчик текстовых сообщений (телефоны)"""
     
-    # Проверяем, ждём ли мы телефон от этого пользователя
-    if user_state.get('waiting_for_phone') or is_valid_phone(text):
-        if is_valid_phone(text):
-            # Это телефон!
-            phone = normalize_phone(text)
-            
-            # Отправляем подтверждение пользователю
-            send_message(
-                chat_id,
-                f"✅ Спасибо, {name}! 🙏\n\n"
-                f"Я получил ваш номер: {phone}\n"
-                f"Свяжусь с вами в течение 2 часов!\n\n"
-                f"А пока — посмотрите кейс: как я сэкономил клиенту 400 000₽ 👇\n"
-                f"{CHANNEL_LINK}",
-            )
-            logger.info(f"📞 Phone received from {chat_id}: {phone}")
-            
-            # Отправляем сегментированный лид админу
-            user_state['chat_id'] = chat_id
-            user_state['phone'] = phone
-            send_lead_to_admin(name, phone, user_state)
-            
-            # Сбрасываем состояние
-            user_state.clear()
-            return
-    
-    # Если не телефон — обычное сообщение
-    send_message(
-        chat_id,
-        f"👋 Привет, {name}!\n\n"
-        f"Если у вас есть вопрос — напишите его, я отвечу!\n\n"
-        f"Или выберите действие:",
-        reply_markup=main_menu_kb()
-    )
+    if is_valid_phone(text):
+        phone = normalize_phone(text)
+        
+        send_message(
+            chat_id,
+            f"✅ Спасибо, {name}! 🙏\n\n"
+            f"Я получил ваш номер: {phone}\n"
+            f"Свяжусь с вами в течение 2 часов!\n\n"
+            f"А пока — посмотрите кейс: как я сэкономил клиенту 400 000₽ 👇\n"
+            f"{CHANNEL_LINK}",
+        )
+        logger.info(f"📞 Phone received from {chat_id}: {phone}")
+        
+        # 🔥 Обновляем лид с телефоном (отправляем ещё одно уведомление)
+        if ADMIN_ID:
+            try:
+                send_message(
+                    ADMIN_ID,
+                    f"📞 ТЕЛЕФОН ПОЛУЧЕН!\n"
+                    f"👤 {name}\n"
+                    f"📱 {phone}\n"
+                    f"🆔 {chat_id}"
+                )
+            except Exception as e:
+                logger.error(f"❌ Failed to send phone update: {e}")
+    else:
+        send_message(
+            chat_id,
+            f"👋 Привет, {name}!\n\n"
+            f"Если у вас есть вопрос — напишите его, я отвечу!\n\n"
+            f"Или выберите действие:",
+            reply_markup=main_menu_kb()
+        )
 
 
 def handle_update(update_data):
     """Главный обработчик обновлений"""
     update = update_data
-    chat_id = None
-    name = "Пользователь"
     
-    # Извлекаем chat_id и name из любого типа обновления
     if "message" in update:
         message = update["message"]
         chat_id = message["chat"]["id"]
@@ -494,9 +500,7 @@ def handle_update(update_data):
         if text == "/start":
             handle_start(chat_id, name)
         else:
-            # Для текстовых сообщений создаём простое состояние
-            user_state = {}
-            handle_message(chat_id, text, name, user_state)
+            handle_message(chat_id, text, name)
     
     elif "callback_query" in update:
         callback = update["callback_query"]
@@ -505,9 +509,7 @@ def handle_update(update_data):
         data = callback.get("data", "")
         name = callback["from"].get("first_name", "Пользователь")
         
-        # Создаём состояние для отслеживания выбора пользователя
-        user_state = {'chat_id': chat_id}
-        handle_callback(chat_id, callback_id, data, name, user_state)
+        handle_callback(chat_id, callback_id, data, name)
 
 
 # ==================== РОУТЫ ====================
