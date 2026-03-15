@@ -375,28 +375,28 @@ def handle_callback(chat_id, callback_id, data, name, username):
     answer_callback(callback_id)
     
     if data == "get_checklist":
-    # Отправляем сообщение с кнопкой-ссылкой
-    text = (
-        f"🎉 Готово!\n\n"
-        f"📄 <b>Чек-лист «7 ошибок при покупке»</b>\n\n"
-        f"💡 Совет: сохраните файл в «Избранное» 📌\n\n"
-        f"Чтобы я присылал только подходящие варианты, подскажите:"
-    )
-    
-    # Кнопка для скачивания + кнопки выбора цели
-    kb = {
-        "inline_keyboard": [
-            [{"text": "📥 Скачать чек-лист", "url": CHECKLIST_URL}],
-            [{"text": "🏠 Купить", "callback_data": "goal_buy"}],
-            [{"text": "💰 Продать", "callback_data": "goal_sell"}],
-            [{"text": "📊 Инвестировать", "callback_data": "goal_invest"}],
-            [{"text": "🤔 Пока смотрю", "callback_data": "goal_browse"}]
-        ]
-    }
-    
-    send_message(chat_id, text, reply_markup=kb)
-    logger.info(f"📥 Checklist sent to {chat_id}")
-    return
+        # Отправляем сообщение с кнопкой-ссылкой
+        text = (
+            f"🎉 Готово!\n\n"
+            f"📄 <b>Чек-лист «7 ошибок при покупке»</b>\n\n"
+            f"💡 Совет: сохраните файл в «Избранное» 📌\n\n"
+            f"Чтобы я присылал только подходящие варианты, подскажите:"
+        )
+        
+        # Кнопка для скачивания + кнопки выбора цели
+        kb = {
+            "inline_keyboard": [
+                [{"text": "📥 Скачать чек-лист", "url": CHECKLIST_URL}],
+                [{"text": "🏠 Купить", "callback_data": "goal_buy"}],
+                [{"text": "💰 Продать", "callback_data": "goal_sell"}],
+                [{"text": "📊 Инвестировать", "callback_data": "goal_invest"}],
+                [{"text": "🤔 Пока смотрю", "callback_data": "goal_browse"}]
+            ]
+        }
+        
+        send_message(chat_id, text, reply_markup=kb)
+        logger.info(f"📥 Checklist sent to {chat_id}")
+        return
     
     if data == "goal_buy":
         save_user_state(chat_id, name, username, {'goal': 'buy'})
