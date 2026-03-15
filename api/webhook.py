@@ -1,5 +1,5 @@
 # api/webhook.py
-# Бот «Тульский ключ» — Flask + aiogram для Vercel (ИСПРАВЛЕННАЯ ВЕРСИЯ)
+# Бот «Тульский ключ» — Flask + aiogram для Vercel (РАБОЧАЯ ВЕРСИЯ)
 
 import os
 import json
@@ -8,6 +8,10 @@ import asyncio
 from flask import Flask, request, jsonify
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
+
+# 🔥 ВАЖНО: Разрешаем вложенные event loops для serverless
+import nest_asyncio
+nest_asyncio.apply()
 
 # Добавляем корень проекта в путь для импортов
 import sys
@@ -35,6 +39,7 @@ if BOT_TOKEN:
 else:
     logger.error("❌ BOT_TOKEN not set!")
 
+# 🔥 Инициализируем бота и диспетчер ОДИН раз (глобально)
 bot = Bot(token=BOT_TOKEN) if BOT_TOKEN else None
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage) if bot else None
@@ -68,13 +73,9 @@ def webhook_handler():
         update_data = request.get_json(force=True)
         update = types.Update(**update_data)
         
-        # 🔥 ИСПРАВЛЕНИЕ: Используем существующий event loop, не создаём новый!
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(dp.feed_update(bot, update))
-        finally:
-            loop.close()
+        # 🔥 ИСПРАВЛЕНИЕ: Используем asyncio.run() с nest_asyncio
+        # Не создаём и не закрываем loop вручную!
+        asyncio.run(dp.feed_update(bot, update))
         
         return jsonify({"ok": True}), 200
         
@@ -85,5 +86,4 @@ def webhook_handler():
 
 # ==================== ЗАПУСК (для локального теста) ====================
 if __name__ == '__main__':
-    # Только для локального запуска, не для Vercel
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000)))
