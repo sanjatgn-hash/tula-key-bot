@@ -70,47 +70,102 @@ def answer_callback(callback_query_id, text=None):
         return None
 
 
-# ==================== GOOGLE SHEETS ====================
+# ==================== GOOGLE SHEETS — ИСПРАВЛЕННЫЕ ФУНКЦИИ ====================
 
 def get_sheet():
     """Подключение к Google Sheets"""
+    logger.info("🔍 Attempting to connect to Google Sheets...")
+    
     try:
         from google.oauth2.service_account import Credentials
         import gspread
+        
+        logger.info("✅ Google libraries imported successfully")
+        
+        if not GOOGLE_CREDS_JSON:
+            logger.error("❌ GOOGLE_CREDS_JSON is empty!")
+            return None
+        
+        if not GOOGLE_SHEET_ID:
+            logger.error("❌ GOOGLE_SHEET_ID is empty!")
+            return None
         
         scopes = [
             "https://spreadsheets.google.com/feeds",
             "https://www.googleapis.com/auth/drive"
         ]
         
-        if GOOGLE_CREDS_JSON:
-            creds_info = json.loads(GOOGLE_CREDS_JSON)
-            creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
-        else:
-            logger.error("❌ GOOGLE_CREDS_JSON not set!")
+        logger.info("🔍 Parsing credentials JSON...")
+        creds_info = json.loads(GOOGLE_CREDS_JSON)
+        logger.info(f"✅ Credentials parsed. Email: {creds_info.get('client_email', 'unknown')}")
+        
+        logger.info("🔍 Authorizing...")
+        creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
+        client = gspread.authorize(creds)
+        
+        logger.info(f"🔍 Opening sheet: {GOOGLE_SHEET_ID}")
+        spreadsheet = client.open_by_key(GOOGLE_SHEET_ID)
+        sheet = spreadsheet.sheet1
+        
+        # Проверяем заголовки
+        headers = sheet.row_values(1)
+        logger.info(f"🔍 Sheet headers: {headers}")
+        
+        if not headers or len(headers) < 1:
+            logger.error("❌ Headers row is empty!")
             return None
         
-        client = gspread.authorize(creds)
-        return client.open_by_key(GOOGLE_SHEET_ID).sheet1
+        logger.info("✅ Google Sheets connected successfully!")
+        return sheet
+        
+    except ImportError as e:
+        logger.error(f"❌ ImportError (missing libraries): {e}")
+        return None
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ JSON decode error: {e}")
+        return None
     except Exception as e:
         logger.error(f"❌ Google Sheets error: {e}")
+        import traceback
+        logger.error(f"💡 Traceback: {traceback.format_exc()}")
         return None
 
 
 def save_user_state(chat_id, name, username, data):
     """Сохраняет состояние пользователя в таблицу"""
+    logger.info(f"💾 Saving state for chat_id: {chat_id}")
+    logger.info(f"💾 Data: {data}")
+    
     sheet = get_sheet()
     if not sheet:
+        logger.error("❌ Failed to get sheet, skipping save")
         return False
     
     try:
-        # Проверяем, есть ли уже запись для этого chat_id
-        all_records = sheet.get_all_records()
-        existing_row = None
+        # Проверяем заголовки
+        headers = sheet.row_values(1)
+        logger.info(f"🔍 Sheet headers: {headers}")
         
-        for i, record in enumerate(all_records):
-            if str(record.get('chat_id', '')) == str(chat_id):
-                existing_row = i + 2  # +2 потому что заголовки + индекс с 0
+        # Если таблица пустая — создаём заголовки
+        expected_headers = ['chat_id', 'name', 'username', 'goal', 'budget', 
+                          'deadline', 'prop_type', 'district', 'invest_budget', 
+                          'phone', 'updated_at']
+        
+        if not headers or headers[0] != 'chat_id':
+            logger.warning("⚠️ Headers missing or wrong, creating headers...")
+            sheet.append_row(expected_headers)
+            headers = expected_headers
+            logger.info(f"✅ Headers created: {headers}")
+        
+        # Ищем существующую запись
+        all_values = sheet.get_all_values()
+        logger.info(f"🔍 Total rows in sheet: {len(all_values)}")
+        
+        existing_row = None
+        for i, row in enumerate(all_values[1:], 2):  # Пропускаем заголовки
+            if len(row) > 0 and str(row[0]) == str(chat_id):
+                existing_row = i
+                logger.info(f"🔍 Found existing record at row {existing_row}")
                 break
         
         # Данные для сохранения
@@ -130,14 +185,17 @@ def save_user_state(chat_id, name, username, data):
         
         if existing_row:
             # Обновляем существующую запись
-            for col, value in row_data.items():
-                try:
-                    sheet.update_cell(existing_row, get_column_index(sheet, col), value)
-                except:
-                    pass
+            logger.info(f"🔍 Updating row {existing_row}")
+            for col_idx, header in enumerate(headers, 1):
+                if header in row_data and col_idx <= len(row_data):
+                    try:
+                        sheet.update_cell(existing_row, col_idx, row_data.get(header, ''))
+                    except Exception as e:
+                        logger.warning(f"⚠️ Failed to update {header}: {e}")
         else:
-            # Создаём новую запись
-            sheet.append_row([
+            # Новая запись
+            logger.info("🔍 Creating new row")
+            new_row = [
                 row_data['chat_id'],
                 row_data['name'],
                 row_data['username'],
@@ -149,70 +207,90 @@ def save_user_state(chat_id, name, username, data):
                 row_data['invest_budget'],
                 row_data['phone'],
                 row_data['updated_at']
-            ])
+            ]
+            sheet.append_row(new_row)
+            logger.info(f"✅ New row appended")
         
-        logger.info(f"💾 State saved for chat_id: {chat_id}")
+        logger.info(f"✅ State saved successfully for chat_id: {chat_id}")
         return True
         
     except Exception as e:
         logger.error(f"❌ Save state error: {e}")
+        import traceback
+        logger.error(f"💡 Traceback: {traceback.format_exc()}")
         return False
 
 
 def get_user_state(chat_id):
     """Читает состояние пользователя из таблицы"""
+    logger.info(f"📖 Loading state for chat_id: {chat_id}")
+    
     sheet = get_sheet()
     if not sheet:
+        logger.error("❌ Sheet connection failed")
         return None
     
     try:
-        all_records = sheet.get_all_records()
+        # Используем get_all_values() вместо get_all_records() — надёжнее
+        all_values = sheet.get_all_values()
+        logger.info(f"🔍 Total rows in sheet: {len(all_values)}")
         
-        for record in all_records:
-            if str(record.get('chat_id', '')) == str(chat_id):
-                logger.info(f"📖 State loaded for chat_id: {chat_id}")
-                return record
+        if len(all_values) < 2:
+            logger.info("⚠️ No data rows in sheet (headers only)")
+            return None
         
-        logger.info(f"📖 No state found for chat_id: {chat_id}")
+        # Заголовки в первой строке
+        headers = all_values[0]
+        logger.info(f"🔍 Headers: {headers}")
+        
+        # Ищем запись с matching chat_id
+        for row in all_values[1:]:  # Пропускаем заголовки
+            if len(row) > 0 and str(row[0]) == str(chat_id):
+                # Преобразуем в словарь
+                state = {}
+                for i, header in enumerate(headers):
+                    if i < len(row):
+                        state[header] = row[i]
+                    else:
+                        state[header] = ''
+                
+                logger.info(f"✅ State loaded: {state}")
+                return state
+        
+        logger.info(f"⚠️ No state found for chat_id: {chat_id}")
         return None
         
     except Exception as e:
         logger.error(f"❌ Get state error: {e}")
+        import traceback
+        logger.error(f"💡 Traceback: {traceback.format_exc()}")
         return None
 
 
 def delete_user_state(chat_id):
     """Удаляет состояние после отправки лида"""
+    logger.info(f"🗑️ Deleting state for chat_id: {chat_id}")
+    
     sheet = get_sheet()
     if not sheet:
         return False
     
     try:
-        all_records = sheet.get_all_records()
+        all_values = sheet.get_all_values()
         
-        for i, record in enumerate(all_records):
-            if str(record.get('chat_id', '')) == str(chat_id):
-                row_num = i + 2
-                sheet.delete_rows(row_num)
-                logger.info(f"🗑️ State deleted for chat_id: {chat_id}")
+        for i, row in enumerate(all_values[1:], 2):  # Пропускаем заголовки
+            if len(row) > 0 and str(row[0]) == str(chat_id):
+                sheet.delete_rows(i)
+                logger.info(f"✅ State deleted for chat_id: {chat_id}")
                 return True
         
+        logger.warning(f"⚠️ No record found to delete for chat_id: {chat_id}")
         return False
         
     except Exception as e:
         logger.error(f"❌ Delete state error: {e}")
         return False
-
-
-def get_column_index(sheet, column_name):
-    """Получает индекс колонки по имени"""
-    try:
-        headers = sheet.row_values(1)
-        return headers.index(column_name) + 1 if column_name in headers else 1
-    except:
-        return 1
-
-
+        
 # ==================== ВАЛИДАЦИЯ ТЕЛЕФОНА ====================
 
 def is_valid_phone(text):
