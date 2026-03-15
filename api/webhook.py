@@ -1,7 +1,8 @@
 # api/webhook.py
-# Бот «Тульский ключ» — с обработкой телефонов
+# Бот «Тульский ключ» — с умной валидацией телефона и сегментацией лидов
 
 import os
+import re
 import json
 import logging
 import requests
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Загрузка токена
+# ==================== НАСТРОЙКИ ====================
 RAW_TOKEN = os.getenv("BOT_TOKEN", "")
 BOT_TOKEN = "".join(RAW_TOKEN.split())
 
@@ -63,6 +64,66 @@ def answer_callback(callback_query_id, text=None):
     except Exception as e:
         logger.error(f"❌ answer_callback error: {e}")
         return None
+
+
+# ==================== ВАЛИДАЦИЯ ТЕЛЕФОНА ====================
+
+def is_valid_phone(text):
+    """
+    Проверяет, похож ли текст на номер телефона.
+    Поддерживает форматы:
+    • +7 999 123-45-67
+    • 8-999-123-45-67
+    • 79991234567
+    • 9991234567
+    • +7(999)123-45-67
+    """
+    if not text:
+        return False
+    
+    # Удаляем ВСЕ нецифровые символы кроме + в начале
+    cleaned = re.sub(r'[^\d+]', '', text)
+    
+    # Убираем + если он не в начале
+    if cleaned.startswith('++'):
+        cleaned = '+' + cleaned.lstrip('+')
+    
+    # Паттерны для проверки:
+    # 1. +7 + 10 цифр = 11 символов
+    # 2. 7 + 10 цифр = 11 символов  
+    # 3. 8 + 10 цифр = 11 символов
+    # 4. 10 цифр (без кода страны)
+    
+    patterns = [
+        r'^\+7\d{10}$',      # +79991234567
+        r'^7\d{10}$',        # 79991234567
+        r'^8\d{10}$',        # 89991234567
+        r'^\d{10}$',         # 9991234567
+        r'^\d{11}$',         # 79991234567 без +
+    ]
+    
+    for pattern in patterns:
+        if re.match(pattern, cleaned):
+            return True
+    
+    return False
+
+
+def normalize_phone(text):
+    """Приводит телефон к единому формату: +79991234567"""
+    cleaned = re.sub(r'[^\d+]', '', text)
+    
+    # Если начинается с 8 — меняем на +7
+    if cleaned.startswith('8') and len(cleaned) == 11:
+        cleaned = '+7' + cleaned[1:]
+    # Если начинается с 7 и 11 цифр — добавляем +
+    elif cleaned.startswith('7') and len(cleaned) == 11 and not cleaned.startswith('+'):
+        cleaned = '+' + cleaned
+    # Если 10 цифр — добавляем +7
+    elif cleaned.isdigit() and len(cleaned) == 10:
+        cleaned = '+7' + cleaned
+    
+    return cleaned
 
 
 # ==================== КЛАВИАТУРЫ ====================
@@ -133,6 +194,52 @@ def invest_budget_kb():
     }
 
 
+# ==================== ОТПРАВКА ЛИДА АДМИНУ ====================
+
+def send_lead_to_admin(name, phone, user_data):
+    """Отправляет сегментированный лид админу"""
+    if not ADMIN_ID:
+        return
+    
+    # Формируем текст лида
+    goal_emoji = "🏠" if user_data.get('goal') == 'buy' else "💰" if user_data.get('goal') == 'sell' else "📊"
+    
+    lines = [
+        f"🔥 НОВЫЙ ЛИД | {goal_emoji} {user_data.get('goal_text', '')}",
+        f"━━━━━━━━━━━━━━",
+        f"👤 Имя: {name}",
+        f"📞 Телефон: {phone}",
+        f"🆔 ID: {user_data.get('chat_id', '')}",
+    ]
+    
+    # Добавляем параметры в зависимости от цели
+    if user_data.get('goal') == 'buy':
+        if user_data.get('budget'):
+            lines.append(f"💰 Бюджет: {user_data['budget']}")
+        if user_data.get('deadline'):
+            lines.append(f"⏰ Срок: {user_data['deadline']}")
+    
+    elif user_data.get('goal') == 'sell':
+        if user_data.get('prop_type'):
+            lines.append(f"🏠 Тип: {user_data['prop_type']}")
+        if user_data.get('district'):
+            lines.append(f"📍 Район: {user_data['district']}")
+    
+    elif user_data.get('goal') == 'invest':
+        if user_data.get('invest_budget'):
+            lines.append(f"💵 Бюджет: {user_data['invest_budget']}")
+    
+    lines.append("━━━━━━━━━━━━━━")
+    
+    text = "\n".join(lines)
+    
+    try:
+        send_message(ADMIN_ID, text)
+        logger.info(f"📩 Lead notification sent to admin {ADMIN_ID}")
+    except Exception as e:
+        logger.error(f"❌ Failed to notify admin: {e}")
+
+
 # ==================== ОБРАБОТЧИКИ ====================
 
 def handle_start(chat_id, name):
@@ -146,16 +253,16 @@ def handle_start(chat_id, name):
     logger.info(f"📩 /start sent to {chat_id}")
 
 
-def handle_callback(chat_id, callback_id, data, name):
-    """Обработчик callback queries"""
+def handle_callback(chat_id, callback_id, data, name, user_state):
+    """Обработчик callback queries с сохранением состояния"""
     
     answer_callback(callback_id)
     
     if data == "get_checklist":
         text = (
             f"🎉 Готово!\n\n"
-            f"📄 Чек-лист:\n{CHECKLIST_URL}\n\n"
-            f"💡 Сохраните ссылку в «Избранное» 📌\n\n"
+            f"📄 Чек-лист «7 ошибок при покупке»:\n{CHECKLIST_URL}\n\n"
+            f"💡 Совет: сохраните ссылку в «Избранное» 📌\n\n"
             f"Чтобы я присылал только подходящие варианты, подскажите:"
         )
         kb = {
@@ -169,41 +276,115 @@ def handle_callback(chat_id, callback_id, data, name):
         send_message(chat_id, text, reply_markup=kb)
         logger.info(f"📥 Checklist sent to {chat_id}")
     
+    # ==================== ПОКУПКА ====================
     elif data == "goal_buy":
+        user_state['goal'] = 'buy'
+        user_state['goal_text'] = 'Покупка'
         text = f"{name}, понял! 🔑 Чтобы подборка была точной:\n\n1️⃣ Ваш бюджет?"
         send_message(chat_id, text, reply_markup=budget_kb())
-        # Сохраняем состояние в БД (пока просто лог)
         logger.info(f"💾 User {chat_id} started BUY flow")
     
     elif data.startswith("budget_"):
+        budget_map = {
+            "budget_3m": "до 3 млн",
+            "budget_5m": "3–5 млн",
+            "budget_5plus": "5+ млн",
+            "budget_help": "Нужна помощь"
+        }
+        user_state['budget'] = budget_map.get(data, "")
         text = "2️⃣ Когда планируете сделку?"
         send_message(chat_id, text, reply_markup=deadline_kb())
     
     elif data.startswith("deadline_"):
+        deadline_map = {
+            "deadline_urgent": "🔥 Срочно",
+            "deadline_month": "📅 1-3 месяца",
+            "deadline_look": "👀 Пока присматриваюсь"
+        }
+        user_state['deadline'] = deadline_map.get(data, "")
+        
         if data == "deadline_urgent":
-            text = f"🔥 Вижу, вы ищете серьёзно!\n\n📞 Напишите ваш номер телефона:\n(например: +79991234567)"
+            # 🔥 Горячий лид — просим телефон
+            text = (
+                f"🔥 Вижу, вы ищете серьёзно!\n\n"
+                f"📞 Напишите ваш номер телефона в любом формате:\n"
+                f"• +7 999 123-45-67\n"
+                f"• 8-999-123-45-67\n"
+                f"• 9991234567\n"
+                f"Я свяжусь с вами в течение 2 часов!"
+            )
+            send_message(chat_id, text)
+            user_state['waiting_for_phone'] = True
         else:
-            text = f"✅ Отлично! Буду присылать лучшие варианты 📬\n\nЕсли захотите срочную подборку — напишите «ХОЧУ ПОДБОРКУ»"
-        send_message(chat_id, text)
+            # 📅 Не срочно — показываем чек-лист и канал
+            text = (
+                f"✅ Понял, вы пока присматриваетесь!\n\n"
+                f"📄 Если еще не скачали — получите чек-лист «7 ошибок при покупке»:\n"
+                f"{CHECKLIST_URL}\n\n"
+                f"📢 Подпишитесь на канал «Тульский ключ» — там лучшие предложения и новости:\n"
+                f"{CHANNEL_LINK}\n\n"
+                f"Когда будете готовы — просто напишите «ХОЧУ ПОДБОРКУ» или ваш номер телефона 🔑"
+            )
+            send_message(chat_id, text)
+            logger.info(f"📬 Warm lead: {chat_id} — not urgent")
     
+    # ==================== ПРОДАЖА ====================
     elif data == "goal_sell":
+        user_state['goal'] = 'sell'
+        user_state['goal_text'] = 'Продажа'
         text = f"{name}, помогу выгодно продать недвижимость в Туле 🏡\n\n1️⃣ Тип объекта?"
         send_message(chat_id, text, reply_markup=property_type_kb())
         logger.info(f"💾 User {chat_id} started SELL flow")
     
     elif data.startswith("type_"):
+        type_map = {
+            "type_flat": "Квартира",
+            "type_house": "Дом",
+            "type_room": "Комната",
+            "type_other": "Другое"
+        }
+        user_state['prop_type'] = type_map.get(data, "")
         text = "2️⃣ Район Тулы?"
         send_message(chat_id, text, reply_markup=district_kb())
     
     elif data.startswith("dist_"):
-        text = "✅ Отлично! 🏡 Я подготовлю:\n• Бесплатную оценку\n• План продажи\n• Чек-лист «Как подготовить квартиру»\n\n📞 Напишите ваш номер телефона:\n(например: +79991234567)"
+        district_map = {
+            "dist_center": "Центральный",
+            "dist_zarechye": "Заречье",
+            "dist_proletarsky": "Пролетарский",
+            "dist_any": "Любой"
+        }
+        user_state['district'] = district_map.get(data, "")
+        
+        text = (
+            f"✅ Отлично! 🏡 Я подготовлю:\n"
+            f"• Бесплатную оценку рыночной стоимости\n"
+            f"• План продажи с прогнозом сроков\n"
+            f"• Чек-лист «Как подготовить квартиру к продаже»\n\n"
+            f"📞 Напишите ваш номер телефона в любом формате:\n"
+            f"• +7 999 123-45-67\n"
+            f"• 8-999-123-45-67\n"
+            f"• 9991234567\n"
+            f"Я свяжусь с вами в течение 2 часов!"
+        )
         send_message(chat_id, text)
+        user_state['waiting_for_phone'] = True
     
+    # ==================== ИНВЕСТИЦИИ ====================
     elif data == "goal_invest":
+        user_state['goal'] = 'invest'
+        user_state['goal_text'] = 'Инвестиции'
         text = "📊 Калькулятор инвестора в недвижимость Тулы\n\nВыберите бюджет для расчёта:"
         send_message(chat_id, text, reply_markup=invest_budget_kb())
     
     elif data.startswith("invest_"):
+        invest_map = {
+            "invest_2m": "до 2 млн",
+            "invest_5m": "2–5 млн",
+            "invest_5plus": "5+ млн"
+        }
+        user_state['invest_budget'] = invest_map.get(data, "")
+        
         calc = {
             "invest_2m": {"price": "2 000 000", "downpayment": "400 000", "monthly": "~18 000", "rent": "~15 000", "cashflow": "-3 000", "roi": "~8%"},
             "invest_5m": {"price": "5 000 000", "downpayment": "1 000 000", "monthly": "~45 000", "rent": "~35 000", "cashflow": "-10 000", "roi": "~10%"},
@@ -218,10 +399,13 @@ def handle_callback(chat_id, callback_id, data, name):
             f"💵 Аренда: {c['rent']} ₽/мес\n"
             f"📦 Чистыми: {c['cashflow']} ₽/мес\n"
             f"📈 ROI: {c['roi']}\n\n"
-            f"⚠️ Это ориентировочный расчёт."
+            f"⚠️ Это ориентировочный расчёт.\n\n"
+            f"💬 Хотите обсудить стратегию? Напишите ваш номер телефона 👇"
         )
         send_message(chat_id, text)
+        user_state['waiting_for_phone'] = True
     
+    # ==================== FAQ И ДРУГОЕ ====================
     elif data == "faq":
         text = (
             f"💬 Частые вопросы:\n\n"
@@ -243,68 +427,77 @@ def handle_callback(chat_id, callback_id, data, name):
         send_message(chat_id, text)
     
     elif data == "goal_browse":
-        send_message(chat_id, "✅ Вы в списке рассылки! Буду присылать лучшие предложения Тулы 📬")
+        text = (
+            f"✅ Вы в списке рассылки!\n\n"
+            f"📄 Пока ждёте — скачайте чек-лист «7 ошибок при покупке»:\n"
+            f"{CHECKLIST_URL}\n\n"
+            f"📢 И подпишитесь на канал с лучшими предложениями:\n"
+            f"{CHANNEL_LINK}"
+        )
+        send_message(chat_id, text)
     
-    logger.info(f"✅ Callback handled: {data}")
+    logger.info(f"✅ Callback handled: {data} | State: {user_state}")
 
 
-def handle_message(chat_id, text, name):
+def handle_message(chat_id, text, name, user_state):
     """Обработчик текстовых сообщений (телефоны, вопросы)"""
     
-    # Проверка на телефон (простая валидация)
-    if text and (text.startswith("+7") or text.startswith("8")) and len(text.replace(" ", "").replace("-", "")) >= 10:
-        # Это телефон!
-        send_message(
-            chat_id,
-            f"✅ Спасибо, {name}! 🙏\n\n"
-            f"Я получил ваш номер: {text}\n"
-            f"Свяжусь с вами в течение 2 часов!\n\n"
-            f"А пока — посмотрите кейс: как я сэкономил клиенту 400 000₽ 👇\n"
-            f"{CHANNEL_LINK}",
-        )
-        logger.info(f"📞 Phone received from {chat_id}: {text}")
-        
-        # Отправка уведомления админу (если ADMIN_ID задан)
-        if ADMIN_ID:
-            try:
-                send_message(
-                    ADMIN_ID,
-                    f"🔥 НОВЫЙ ЛИД!\n\n"
-                    f"👤 Имя: {name}\n"
-                    f"📞 Телефон: {text}\n"
-                    f"🆔 ID: {chat_id}"
-                )
-                logger.info(f"📩 Notification sent to admin {ADMIN_ID}")
-            except Exception as e:
-                logger.error(f"❌ Failed to notify admin: {e}")
-    else:
-        # Обычное сообщение
-        send_message(
-            chat_id,
-            f"👋 Привет, {name}!\n\n"
-            f"Если у вас есть вопрос — напишите его, я отвечу!\n\n"
-            f"Или выберите действие:",
-            reply_markup=main_menu_kb()
-        )
+    # Проверяем, ждём ли мы телефон от этого пользователя
+    if user_state.get('waiting_for_phone') or is_valid_phone(text):
+        if is_valid_phone(text):
+            # Это телефон!
+            phone = normalize_phone(text)
+            
+            # Отправляем подтверждение пользователю
+            send_message(
+                chat_id,
+                f"✅ Спасибо, {name}! 🙏\n\n"
+                f"Я получил ваш номер: {phone}\n"
+                f"Свяжусь с вами в течение 2 часов!\n\n"
+                f"А пока — посмотрите кейс: как я сэкономил клиенту 400 000₽ 👇\n"
+                f"{CHANNEL_LINK}",
+            )
+            logger.info(f"📞 Phone received from {chat_id}: {phone}")
+            
+            # Отправляем сегментированный лид админу
+            user_state['chat_id'] = chat_id
+            user_state['phone'] = phone
+            send_lead_to_admin(name, phone, user_state)
+            
+            # Сбрасываем состояние
+            user_state.clear()
+            return
+    
+    # Если не телефон — обычное сообщение
+    send_message(
+        chat_id,
+        f"👋 Привет, {name}!\n\n"
+        f"Если у вас есть вопрос — напишите его, я отвечу!\n\n"
+        f"Или выберите действие:",
+        reply_markup=main_menu_kb()
+    )
 
 
 def handle_update(update_data):
     """Главный обработчик обновлений"""
     update = update_data
+    chat_id = None
+    name = "Пользователь"
     
-    # Обработка сообщений (текст)
+    # Извлекаем chat_id и name из любого типа обновления
     if "message" in update:
         message = update["message"]
         chat_id = message["chat"]["id"]
-        text = message.get("text", "")
         name = message["from"].get("first_name", "Пользователь")
+        text = message.get("text", "")
         
         if text == "/start":
             handle_start(chat_id, name)
         else:
-            handle_message(chat_id, text, name)
+            # Для текстовых сообщений создаём простое состояние
+            user_state = {}
+            handle_message(chat_id, text, name, user_state)
     
-    # Обработка callback queries (кнопки)
     elif "callback_query" in update:
         callback = update["callback_query"]
         chat_id = callback["message"]["chat"]["id"]
@@ -312,7 +505,9 @@ def handle_update(update_data):
         data = callback.get("data", "")
         name = callback["from"].get("first_name", "Пользователь")
         
-        handle_callback(chat_id, callback_id, data, name)
+        # Создаём состояние для отслеживания выбора пользователя
+        user_state = {'chat_id': chat_id}
+        handle_callback(chat_id, callback_id, data, name, user_state)
 
 
 # ==================== РОУТЫ ====================
