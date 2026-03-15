@@ -1,10 +1,10 @@
 # api/webhook.py
-# Точка входа для Vercel: serverless webhook handler для Telegram
+# Бот «Тульский ключ» — Flask + aiogram для Vercel
 
 import os
 import json
 import logging
-from aiohttp import web
+from flask import Flask, request, jsonify
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -22,90 +22,63 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Инициализация бота и диспетчера
-bot = Bot(token=config.BOT_TOKEN)
+# ==================== ИНИЦИАЛИЗАЦИЯ ====================
+app = Flask(__name__)
+
+# Загрузка и очистка токена
+RAW_TOKEN = os.getenv("BOT_TOKEN", "")
+BOT_TOKEN = "".join(RAW_TOKEN.split())  # Удаляем ВСЕ пробелы
+
+if BOT_TOKEN:
+    logger.info(f"✅ BOT_TOKEN loaded: {BOT_TOKEN[:10]}...")
+else:
+    logger.error("❌ BOT_TOKEN not set!")
+
+bot = Bot(token=BOT_TOKEN) if BOT_TOKEN else None
 storage = MemoryStorage()
-dp = Dispatcher(storage=storage)
+dp = Dispatcher(storage=storage) if bot else None
 
-# Регистрация всех обработчиков
-register_handlers(dp)
+# Регистрация обработчиков
+if dp:
+    register_handlers(dp)
+    logger.info("✅ Handlers registered")
 
 
-async def webhook_handler(request):
-    """
-    Обработчик входящих обновлений от Telegram API.
-    Вызывается при каждом сообщении/действии пользователя.
-    """
+# ==================== РОУТЫ FLASK ====================
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    logger.info("🏥 Health check requested")
+    return "OK", 200
+
+
+@app.route(f'/webhook/{BOT_TOKEN}', methods=['POST']) if BOT_TOKEN else None
+def webhook_handler():
+    """Обработчик webhook от Telegram"""
+    if not bot or not dp:
+        logger.error("❌ Bot not initialized")
+        return jsonify({"error": "Bot not initialized"}), 500
+    
     try:
-        # Получаем JSON-данные от Telegram
-        data = await request.json()
+        logger.info("📬 Webhook called!")
         
-        # Преобразуем в объект aiogram Update
-        update = types.Update(**data)
+        # Получаем обновление от Telegram
+        update_data = request.get_json(force=True)
+        update = types.Update(**update_data)
         
-        # Передаём обновление в диспетчер для обработки
-        await dp.feed_update(bot, update)
+        # Обрабатываем через aiogram (в том же потоке для serverless)
+        import asyncio
+        asyncio.run(dp.feed_update(bot, update))
         
-        # Возвращаем успешный ответ
-        return web.Response(status=200)
+        return jsonify({"ok": True}), 200
         
     except Exception as e:
         logger.error(f"❌ Webhook error: {e}", exc_info=True)
-        return web.Response(status=500)
+        return jsonify({"error": str(e)}), 500
 
 
-async def health_check(request):
-    """
-    Health check endpoint для Vercel.
-    Возвращает 200, если приложение работает.
-    """
-    return web.Response(text="OK", status=200)
-
-
-async def on_startup(app):
-    """
-    Выполняется при запуске приложения.
-    Настраивает webhook в Telegram.
-    """
-    if config.VERCEL_URL:
-        webhook_url = f"{config.VERCEL_URL}{config.WEBHOOK_PATH}"
-        try:
-            await bot.set_webhook(webhook_url, drop_pending_updates=True)
-            logger.info(f"✅ Webhook set: {webhook_url}")
-        except Exception as e:
-            logger.error(f"❌ Set webhook error: {e}")
-
-
-async def on_shutdown(app):
-    """
-    Выполняется при остановке приложения.
-    Очищает webhook и закрывает сессию бота.
-    """
-    try:
-        await bot.delete_webhook()
-        await bot.session.close()
-        logger.info("✅ Bot session closed")
-    except Exception as e:
-        logger.error(f"❌ Shutdown error: {e}")
-
-
-def create_app():
-    """
-    Создаёт и настраивает aiohttp приложение для Vercel.
-    """
-    app = web.Application()
-    
-    # Регистрация маршрутов
-    app.router.add_post(config.WEBHOOK_PATH, webhook_handler)
-    app.router.add_get("/health", health_check)
-    
-    # Регистрация хуков жизненного цикла
-    app.on_startup.append(on_startup)
-    app.on_shutdown.append(on_shutdown)
-    
-    return app
-
-
-# Точка входа для Vercel
-# Vercel автоматически импортирует переменную 'app' из этого файла
-app = create_app()
+# ==================== ЗАПУСК (для локального теста) ====================
+if __name__ == '__main__':
+    # Только для локального запуска, не для Vercel
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000)))
