@@ -55,6 +55,8 @@ def answer_callback(callback_query_id):
 
 # ==================== GOOGLE SHEETS — РАБОЧАЯ ВЕРСИЯ ====================
 
+# ==================== GOOGLE SHEETS — С СОХРАНЕНИЕМ ДЛЯ АНАЛИТИКИ ====================
+
 def get_sheet():
     """Подключение к Google Sheets"""
     try:
@@ -73,8 +75,10 @@ def get_sheet():
         
         # Проверяем заголовки
         headers = sheet.row_values(1)
-        if not headers:
-            sheet.append_row(['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at'])
+        if not headers or headers[0] != 'chat_id':
+            # Создаём заголовки
+            headers = ['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at', 'status']
+            sheet.append_row(headers)
             logger.info("✅ Headers created")
         
         logger.info("✅ Google Sheets connected")
@@ -85,7 +89,7 @@ def get_sheet():
 
 
 def save_user_state(chat_id, name, username, data):
-    """Сохраняет состояние в таблицу"""
+    """Сохраняет состояние в таблицу (добавляет к существующему)"""
     logger.info(f"💾 Saving state for {chat_id}: {data}")
     
     sheet = get_sheet()
@@ -95,30 +99,43 @@ def save_user_state(chat_id, name, username, data):
     try:
         all_values = sheet.get_all_values()
         
-        # Ищем существующую запись
+        # Читаем существующее состояние
+        existing_state = {}
         existing_row = None
+        
         for i, row in enumerate(all_values):
             if len(row) > 0 and str(row[0]) == str(chat_id):
                 existing_row = i + 1
+                if len(row) > 3: existing_state['goal'] = row[3]
+                if len(row) > 4: existing_state['budget'] = row[4]
+                if len(row) > 5: existing_state['deadline'] = row[5]
+                if len(row) > 6: existing_state['prop_type'] = row[6]
+                if len(row) > 7: existing_state['district'] = row[7]
+                if len(row) > 8: existing_state['invest_budget'] = row[8]
+                if len(row) > 9: existing_state['phone'] = row[9]
+                if len(row) > 11: existing_state['status'] = row[11]
                 break
+        
+        # Объединяем существующее с новым
+        merged_data = {**existing_state, **data}
         
         row_data = [
             str(chat_id),
             name or '',
             username or '',
-            data.get('goal', ''),
-            data.get('budget', ''),
-            data.get('deadline', ''),
-            data.get('prop_type', ''),
-            data.get('district', ''),
-            data.get('invest_budget', ''),
-            data.get('phone', ''),
-            datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            merged_data.get('goal', ''),
+            merged_data.get('budget', ''),
+            merged_data.get('deadline', ''),
+            merged_data.get('prop_type', ''),
+            merged_data.get('district', ''),
+            merged_data.get('invest_budget', ''),
+            merged_data.get('phone', ''),
+            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            merged_data.get('status', 'new')  # Статус по умолчанию
         ]
         
         if existing_row:
-            # Обновляем через update() — правильный метод!
-            sheet.update(f'A{existing_row}:K{existing_row}', [row_data])
+            sheet.update(f'A{existing_row}:L{existing_row}', [row_data])
             logger.info(f"✅ Updated row {existing_row}")
         else:
             sheet.append_row(row_data)
@@ -127,6 +144,8 @@ def save_user_state(chat_id, name, username, data):
         return True
     except Exception as e:
         logger.error(f"❌ Save error: {e}")
+        import traceback
+        logger.error(f"💡 Traceback: {traceback.format_exc()}")
         return False
 
 
@@ -154,6 +173,7 @@ def get_user_state(chat_id):
                     'district': row[7] if len(row) > 7 else '',
                     'invest_budget': row[8] if len(row) > 8 else '',
                     'phone': row[9] if len(row) > 9 else '',
+                    'status': row[11] if len(row) > 11 else 'new',
                 }
                 logger.info(f"✅ State loaded: {state}")
                 return state
@@ -165,22 +185,29 @@ def get_user_state(chat_id):
         return None
 
 
-def delete_user_state(chat_id):
-    """Удаляет состояние"""
+def mark_lead_sent(chat_id):
+    """Отмечает лид как отправленный (НЕ удаляет!)"""
+    logger.info(f"📝 Marking lead as sent: {chat_id}")
+    
     sheet = get_sheet()
     if not sheet:
         return False
     
     try:
         all_values = sheet.get_all_values()
-        for i, row in enumerate(all_values[1:], 2):
+        
+        for i, row in enumerate(all_values[1:], 2):  # Пропускаем заголовки
             if len(row) > 0 and str(row[0]) == str(chat_id):
-                sheet.delete_rows(i)
-                logger.info(f"🗑️ Deleted row {i}")
+                # Обновляем только статус (колонка L)
+                sheet.update_cell(i, 12, 'sent')
+                sheet.update_cell(i, 11, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                logger.info(f"✅ Marked row {i} as sent")
                 return True
+        
+        logger.warning(f"⚠️ No record found for {chat_id}")
         return False
     except Exception as e:
-        logger.error(f"❌ Delete error: {e}")
+        logger.error(f"❌ Mark error: {e}")
         return False
 
 
@@ -373,22 +400,50 @@ def handle_callback(chat_id, callback_id, data, name, username):
 
 
 def handle_message(chat_id, text, name, username):
+    """Обработчик текстовых сообщений"""
+    
     if is_valid_phone(text):
         phone = normalize_phone(text)
         state = get_user_state(chat_id)
         
         if state and state.get('goal'):
+            # Отправляем лид
             send_lead_to_admin(name, phone, chat_id, state)
-            delete_user_state(chat_id)
+            # Отмечаем как отправленный (НЕ удаляем!)
+            mark_lead_sent(chat_id)
+            logger.info(f"✅ Lead sent and marked for {chat_id}")
         elif ADMIN_ID:
-            send_message(ADMIN_ID, f"📞 КОНТАКТ!\n━━━━━━━━━━━━━━\n👤 {name}\n📞 {phone}\n🆔 {chat_id}\n━━━━━━━━━━━━━━\n⚠️ Контекст неизвестен")
+            # Нет контекста — просто контакт
+            send_message(
+                ADMIN_ID,
+                f"📞 НОВЫЙ КОНТАКТ!\n"
+                f"━━━━━━━━━━━━━━\n"
+                f"👤 Имя: {name}\n"
+                f"📞 Телефон: {phone}\n"
+                f"🆔 ID: {chat_id}\n"
+                f"━━━━━━━━━━━━━━\n"
+                f"⚠️ Контекст неизвестен"
+            )
         
-        send_message(chat_id, f"✅ Спасибо, {name}! 🙏\n\nТелефон: {phone}\nСвяжусь в течение 2 часов!\n\n{CHANNEL_LINK}")
-        logger.info(f"📞 Phone from {chat_id}: {phone}")
+        # Ответ пользователю
+        send_message(
+            chat_id,
+            f"✅ Спасибо, {name}! 🙏\n\n"
+            f"Я получил ваш номер: {phone}\n"
+            f"Свяжусь с вами в течение 2 часов!\n\n"
+            f"А пока — посмотрите кейс: как я сэкономил клиенту 400 000₽ 👇\n"
+            f"{CHANNEL_LINK}",
+        )
+        logger.info(f"📞 Phone received from {chat_id}: {phone}")
     else:
-        send_message(chat_id, f"👋 Привет! Если есть вопрос — напишите, отвечу!\n\nИли выберите действие:", reply_markup=main_menu_kb())
-
-
+        send_message(
+            chat_id,
+            f"👋 Привет, {name}!\n\n"
+            f"Если у вас есть вопрос — напишите его, я отвечу!\n\n"
+            f"Или выберите действие:",
+            reply_markup=main_menu_kb()
+        )
+        
 def handle_update(update_data):
     if "message" in update_data:
         m = update_data["message"]
