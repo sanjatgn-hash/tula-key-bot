@@ -250,32 +250,6 @@ def mark_lead_sent(chat_id):
         return False
         
 
-def mark_lead_sent(chat_id):
-    """Отмечает лид как отправленный (НЕ удаляет!)"""
-    logger.info(f"📝 Marking lead as sent: {chat_id}")
-    
-    sheet = get_sheet()
-    if not sheet:
-        return False
-    
-    try:
-        all_values = sheet.get_all_values()
-        
-        for i, row in enumerate(all_values[1:], 2):  # Пропускаем заголовки
-            if len(row) > 0 and str(row[0]) == str(chat_id):
-                # Обновляем только статус (колонка L)
-                sheet.update_cell(i, 12, 'sent')
-                sheet.update_cell(i, 11, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-                logger.info(f"✅ Marked row {i} as sent")
-                return True
-        
-        logger.warning(f"⚠️ No record found for {chat_id}")
-        return False
-    except Exception as e:
-        logger.error(f"❌ Mark error: {e}")
-        return False
-
-
 # ==================== ТЕЛЕФОН ====================
 
 def is_valid_phone(text):
