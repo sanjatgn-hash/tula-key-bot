@@ -55,7 +55,7 @@ def answer_callback(callback_query_id):
 # ==================== GOOGLE SHEETS — С СОХРАНЕНИЕМ ДЛЯ АНАЛИТИКИ ====================
 
 def get_sheet():
-    """Подключение к Google Sheets"""
+    """Подключение к Google Sheets — БЕЗ дублирования заголовков"""
     try:
         from google.oauth2.service_account import Credentials
         import gspread
@@ -70,31 +70,43 @@ def get_sheet():
         client = gspread.authorize(creds)
         sheet = client.open_by_key(GOOGLE_SHEET_ID).sheet1
         
-        # Проверяем, есть ли заголовки (только первая ячейка A1)
+        # Проверяем ВСЮ первую строку (не только A1!)
         try:
-            first_cell = sheet.acell('A1').value
-            logger.info(f"🔍 First cell A1: '{first_cell}'")
+            first_row = sheet.row_values(1)
+            logger.info(f"🔍 First row: {first_row}")
             
-            # Если в A1 уже "chat_id" — заголовки есть
-            if first_cell == 'chat_id':
-                logger.info("✅ Headers already exist")
+            # Проверяем, есть ли правильные заголовки
+            if first_row and first_row[0] == 'chat_id' and first_row[1] == 'name':
+                logger.info("✅ Headers already exist — skipping creation")
             else:
-                # Заголовков нет — создаём
-                logger.warning("⚠️ Headers not found, creating...")
+                # Заголовков нет или неправильные — создаём
+                logger.warning("⚠️ Headers missing or wrong, creating...")
+                headers = ['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at', 'status']
+                
+                # Очищаем первую строку если там мусор
+                if first_row:
+                    sheet.clear()
+                
+                sheet.append_row(headers)
+                logger.info("✅ Headers created successfully")
+                
+        except Exception as e:
+            logger.error(f"❌ Error checking headers: {e}")
+            # Если ошибка — пробуем создать заголовки
+            try:
                 headers = ['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at', 'status']
                 sheet.append_row(headers)
-                logger.info("✅ Headers created")
-        except Exception as e:
-            # Если ошибка при чтении A1 — создаём заголовки
-            logger.warning(f"⚠️ Error reading A1: {e}, creating headers...")
-            headers = ['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at', 'status']
-            sheet.append_row(headers)
-            logger.info("✅ Headers created")
+                logger.info("✅ Headers created (fallback)")
+            except Exception as e2:
+                logger.error(f"❌ Failed to create headers: {e2}")
         
         logger.info("✅ Google Sheets connected")
         return sheet
+        
     except Exception as e:
-        logger.error(f"❌ Google Sheets: {e}")
+        logger.error(f"❌ Google Sheets connection error: {e}")
+        import traceback
+        logger.error(f"💡 Traceback: {traceback.format_exc()}")
         return None
 
 
