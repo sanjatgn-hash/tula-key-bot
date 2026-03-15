@@ -111,7 +111,7 @@ def get_sheet():
 
 
 def save_user_state(chat_id, name, username, data):
-    """Сохраняет состояние в таблицу (добавляет к существующему)"""
+    """Сохраняет состояние — ВСЕГДА создаёт НОВУЮ строку"""
     logger.info(f"💾 Saving state for {chat_id}: {data}")
     
     sheet = get_sheet()
@@ -119,27 +119,29 @@ def save_user_state(chat_id, name, username, data):
         return False
     
     try:
+        # Читаем ПОСЛЕДНЮЮ активную заявку этого пользователя (если есть)
         all_values = sheet.get_all_values()
+        last_active_row = None
+        last_active_data = {}
         
-        # Читаем существующее состояние
-        existing_state = {}
-        existing_row = None
-        
-        for i, row in enumerate(all_values):
+        # Ищем последнюю строку с status='new' для этого chat_id
+        for i, row in enumerate(all_values[1:], 2):  # Пропускаем заголовки
             if len(row) > 0 and str(row[0]) == str(chat_id):
-                existing_row = i + 1
-                if len(row) > 3: existing_state['goal'] = row[3]
-                if len(row) > 4: existing_state['budget'] = row[4]
-                if len(row) > 5: existing_state['deadline'] = row[5]
-                if len(row) > 6: existing_state['prop_type'] = row[6]
-                if len(row) > 7: existing_state['district'] = row[7]
-                if len(row) > 8: existing_state['invest_budget'] = row[8]
-                if len(row) > 9: existing_state['phone'] = row[9]
-                if len(row) > 11: existing_state['status'] = row[11]
-                break
+                status = row[11] if len(row) > 11 else ''
+                if status == 'new':
+                    last_active_row = i
+                    # Сохраняем существующие данные
+                    last_active_data = {
+                        'goal': row[3] if len(row) > 3 else '',
+                        'budget': row[4] if len(row) > 4 else '',
+                        'deadline': row[5] if len(row) > 5 else '',
+                        'prop_type': row[6] if len(row) > 6 else '',
+                        'district': row[7] if len(row) > 7 else '',
+                        'invest_budget': row[8] if len(row) > 8 else '',
+                    }
         
         # Объединяем существующее с новым
-        merged_data = {**existing_state, **data}
+        merged_data = {**last_active_data, **data}
         
         row_data = [
             str(chat_id),
@@ -153,15 +155,17 @@ def save_user_state(chat_id, name, username, data):
             merged_data.get('invest_budget', ''),
             merged_data.get('phone', ''),
             datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            merged_data.get('status', 'new')  # Статус по умолчанию
+            'new'  # Статус по умолчанию
         ]
         
-        if existing_row:
-            sheet.update(f'A{existing_row}:L{existing_row}', [row_data])
-            logger.info(f"✅ Updated row {existing_row}")
+        if last_active_row:
+            # Обновляем СУЩЕСТВУЮЩУЮ активную заявку
+            sheet.update(f'A{last_active_row}:L{last_active_row}', [row_data])
+            logger.info(f"✅ Updated existing row {last_active_row}")
         else:
+            # Создаём НОВУЮ заявку
             sheet.append_row(row_data)
-            logger.info(f"✅ Appended new row")
+            logger.info(f"✅ Created NEW row for {chat_id}")
         
         return True
     except Exception as e:
@@ -172,7 +176,7 @@ def save_user_state(chat_id, name, username, data):
 
 
 def get_user_state(chat_id):
-    """Читает состояние из таблицы"""
+    """Читает ПОСЛЕДНЮЮ активную заявку (status='new')"""
     logger.info(f"📖 Loading state for {chat_id}")
     
     sheet = get_sheet()
@@ -182,30 +186,69 @@ def get_user_state(chat_id):
     try:
         all_values = sheet.get_all_values()
         
+        # Ищем последнюю строку с status='new' для этого chat_id
+        last_state = None
         for row in all_values[1:]:  # Пропускаем заголовки
             if len(row) > 0 and str(row[0]) == str(chat_id):
-                state = {
-                    'chat_id': row[0] if len(row) > 0 else '',
-                    'name': row[1] if len(row) > 1 else '',
-                    'username': row[2] if len(row) > 2 else '',
-                    'goal': row[3] if len(row) > 3 else '',
-                    'budget': row[4] if len(row) > 4 else '',
-                    'deadline': row[5] if len(row) > 5 else '',
-                    'prop_type': row[6] if len(row) > 6 else '',
-                    'district': row[7] if len(row) > 7 else '',
-                    'invest_budget': row[8] if len(row) > 8 else '',
-                    'phone': row[9] if len(row) > 9 else '',
-                    'status': row[11] if len(row) > 11 else 'new',
-                }
-                logger.info(f"✅ State loaded: {state}")
-                return state
+                status = row[11] if len(row) > 11 else ''
+                if status == 'new':
+                    # Сохраняем последнюю активную заявку
+                    last_state = {
+                        'chat_id': row[0] if len(row) > 0 else '',
+                        'name': row[1] if len(row) > 1 else '',
+                        'username': row[2] if len(row) > 2 else '',
+                        'goal': row[3] if len(row) > 3 else '',
+                        'budget': row[4] if len(row) > 4 else '',
+                        'deadline': row[5] if len(row) > 5 else '',
+                        'prop_type': row[6] if len(row) > 6 else '',
+                        'district': row[7] if len(row) > 7 else '',
+                        'invest_budget': row[8] if len(row) > 8 else '',
+                        'phone': row[9] if len(row) > 9 else '',
+                        'status': status,
+                    }
         
-        logger.info(f"⚠️ No state found for {chat_id}")
-        return None
+        if last_state:
+            logger.info(f"✅ Active state loaded: {last_state}")
+            return last_state
+        else:
+            logger.info(f"⚠️ No active state found for {chat_id}")
+            return None
+            
     except Exception as e:
         logger.error(f"❌ Get state error: {e}")
+        import traceback
+        logger.error(f"💡 Traceback: {traceback.format_exc()}")
         return None
 
+
+def mark_lead_sent(chat_id):
+    """Отмечает ПОСЛЕДНЮЮ активную заявку как отправленную"""
+    logger.info(f"📝 Marking lead as sent: {chat_id}")
+    
+    sheet = get_sheet()
+    if not sheet:
+        return False
+    
+    try:
+        all_values = sheet.get_all_values()
+        
+        # Ищем последнюю строку с status='new'
+        for i, row in enumerate(all_values[1:], 2):  # Пропускаем заголовки
+            if len(row) > 0 and str(row[0]) == str(chat_id):
+                status = row[11] if len(row) > 11 else ''
+                if status == 'new':
+                    # Обновляем статус и время
+                    sheet.update_cell(i, 12, 'sent')  # Колонка L = status
+                    sheet.update_cell(i, 11, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))  # Колонка K = updated_at
+                    logger.info(f"✅ Marked row {i} as sent")
+                    return True
+        
+        logger.warning(f"⚠️ No active lead found for {chat_id}")
+        return False
+    except Exception as e:
+        logger.error(f"❌ Mark error: {e}")
+        return False
+        
 
 def mark_lead_sent(chat_id):
     """Отмечает лид как отправленный (НЕ удаляет!)"""
