@@ -1,24 +1,18 @@
 # api/webhook.py
-# Бот «Тульский ключ» — Flask + aiogram для Vercel (РАБОЧАЯ ВЕРСИЯ)
+# Бот «Тульский ключ» — Flask + ПРЯМЫЕ вызовы Telegram API (РАБОЧАЯ ВЕРСИЯ)
 
 import os
 import json
 import logging
-import asyncio
+import requests
 from flask import Flask, request, jsonify
-from aiogram import Bot, Dispatcher, types
-from aiogram.fsm.storage.memory import MemoryStorage
-
-# 🔥 ВАЖНО: Разрешаем вложенные event loops для serverless
-import nest_asyncio
-nest_asyncio.apply()
 
 # Добавляем корень проекта в путь для импортов
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from lib.handlers import register_handlers
+from lib.handlers_sync import register_handlers_sync  # ← НОВЫЙ файл (создадим ниже)
 
 # Настройка логирования
 logging.basicConfig(
@@ -32,22 +26,15 @@ app = Flask(__name__)
 
 # Загрузка и очистка токена
 RAW_TOKEN = os.getenv("BOT_TOKEN", "")
-BOT_TOKEN = "".join(RAW_TOKEN.split())  # Удаляем ВСЕ пробелы
+BOT_TOKEN = "".join(RAW_TOKEN.split())
 
 if BOT_TOKEN:
     logger.info(f"✅ BOT_TOKEN loaded: {BOT_TOKEN[:10]}...")
 else:
     logger.error("❌ BOT_TOKEN not set!")
 
-# 🔥 Инициализируем бота и диспетчер ОДИН раз (глобально)
-bot = Bot(token=BOT_TOKEN) if BOT_TOKEN else None
-storage = MemoryStorage()
-dp = Dispatcher(storage=storage) if bot else None
-
-# Регистрация обработчиков
-if dp:
-    register_handlers(dp)
-    logger.info("✅ Handlers registered")
+# Telegram API URL
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 
 # ==================== РОУТЫ FLASK ====================
@@ -62,20 +49,20 @@ def health_check():
 @app.route(f'/webhook/{BOT_TOKEN}', methods=['POST']) if BOT_TOKEN else None
 def webhook_handler():
     """Обработчик webhook от Telegram"""
-    if not bot or not dp:
-        logger.error("❌ Bot not initialized")
-        return jsonify({"error": "Bot not initialized"}), 500
+    if not BOT_TOKEN:
+        logger.error("❌ BOT_TOKEN not set")
+        return jsonify({"error": "Bot token not set"}), 500
     
     try:
         logger.info("📬 Webhook called!")
         
         # Получаем обновление от Telegram
         update_data = request.get_json(force=True)
-        update = types.Update(**update_data)
+        logger.info(f"📩 Update received: {update_data.get('update_id')}")
         
-        # 🔥 ИСПРАВЛЕНИЕ: Используем asyncio.run() с nest_asyncio
-        # Не создаём и не закрываем loop вручную!
-        asyncio.run(dp.feed_update(bot, update))
+        # Обрабатываем через синхронные обработчики
+        from lib.handlers_sync import handle_update_sync
+        handle_update_sync(update_data, BOT_TOKEN)
         
         return jsonify({"ok": True}), 200
         
@@ -84,6 +71,6 @@ def webhook_handler():
         return jsonify({"error": str(e)}), 500
 
 
-# ==================== ЗАПУСК (для локального теста) ====================
+# ==================== ЗАПУСК ====================
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000)))
