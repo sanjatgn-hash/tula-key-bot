@@ -374,7 +374,7 @@ def handle_start(chat_id, name, username):
 def handle_callback(chat_id, callback_id, data, name, username):
     answer_callback(callback_id)
     
-    if if data == "get_checklist":
+    if data == "get_checklist":
     # Отправляем сообщение с кнопкой-ссылкой
     text = (
         f"🎉 Готово!\n\n"
