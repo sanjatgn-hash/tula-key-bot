@@ -264,25 +264,24 @@ def main_menu_kb():
         "one_time": False,
         "inline": True,
         "buttons": [
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "get_checklist"})}, "color": "primary", "label": "📥 Получить чек-лист"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "goal_buy"})}, "color": "primary", "label": "🔍 Подобрать квартиру"},
-             {"action": {"type": "text", "payload": json.dumps({"btn": "goal_sell"})}, "color": "primary", "label": "💰 Продать"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "goal_invest"})}, "color": "primary", "label": "📊 Инвестиции"},
-             {"action": {"type": "text", "payload": json.dumps({"btn": "faq"})}, "color": "primary", "label": "💬 Задать вопрос"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "referral"})}, "color": "primary", "label": "🎁 Пригласить друга"}]
+            [{"action": {"type": "text", "payload": json.dumps({"btn": "get_checklist"})}, "label": "📥 Получить чек-лист"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": "goal_buy"})}, "label": "🔍 Подобрать квартиру"},
+             {"action": {"type": "text", "payload": json.dumps({"btn": "goal_sell"})}, "label": "💰 Продать"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": "goal_invest"})}, "label": "📊 Инвестиции"},
+             {"action": {"type": "text", "payload": json.dumps({"btn": "faq"})}, "label": "💬 Задать вопрос"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": "referral"})}, "label": "🎁 Пригласить друга"}]
         ]
     }
-
 
 def budget_kb():
     return {
         "one_time": False,
         "inline": True,
         "buttons": [
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "budget_3m"})}, "color": "primary", "label": "до 3 млн"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "budget_5m"})}, "color": "primary", "label": "3–5 млн"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "budget_5plus"})}, "color": "primary", "label": "5+ млн"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "budget_help"})}, "color": "primary", "label": "Нужна помощь"}]
+            [{"action": {"type": "text", "payload": json.dumps({"btn": "budget_3m"})}, "label": "до 3 млн"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": "budget_5m"})}, "label": "3–5 млн"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": "budget_5plus"})}, "label": "5+ млн"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": "budget_help"})}, "label": "Нужна помощь"}]
         ]
     }
 
@@ -292,9 +291,9 @@ def deadline_kb(budget_code):
         "one_time": False,
         "inline": True,
         "buttons": [
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"buy|{budget_code}|urgent"})}, "color": "primary", "label": "🔥 Срочно"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"buy|{budget_code}|month"})}, "color": "primary", "label": "📅 1-3 мес"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"buy|{budget_code}|look"})}, "color": "primary", "label": "👀 Просто смотрю"}]
+            [{"action": {"type": "text", "payload": json.dumps({"btn": f"buy|{budget_code}|urgent"})}, "label": "🔥 Срочно"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": f"buy|{budget_code}|month"})}, "label": "📅 1-3 мес"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": f"buy|{budget_code}|look"})}, "label": "👀 Просто смотрю"}]
         ]
     }
 
@@ -304,10 +303,10 @@ def property_type_kb():
         "one_time": False,
         "inline": True,
         "buttons": [
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "sell|flat"})}, "color": "primary", "label": "Квартира"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "sell|house"})}, "color": "primary", "label": "Дом"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "sell|room"})}, "color": "primary", "label": "Комната"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "sell|other"})}, "color": "primary", "label": "Другое"}]
+            [{"action": {"type": "text", "payload": json.dumps({"btn": "sell|flat"})}, "label": "Квартира"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": "sell|house"})}, "label": "Дом"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": "sell|room"})}, "label": "Комната"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": "sell|other"})}, "label": "Другое"}]
         ]
     }
 
@@ -317,10 +316,10 @@ def district_kb(type_code):
         "one_time": False,
         "inline": True,
         "buttons": [
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"sell|{type_code}|center"})}, "color": "primary", "label": "Центральный"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"sell|{type_code}|zarechye"})}, "color": "primary", "label": "Заречье"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"sell|{type_code}|proletarsky"})}, "color": "primary", "label": "Пролетарский"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"sell|{type_code}|any"})}, "color": "primary", "label": "Любой"}]
+            [{"action": {"type": "text", "payload": json.dumps({"btn": f"sell|{type_code}|center"})}, "label": "Центральный"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": f"sell|{type_code}|zarechye"})}, "label": "Заречье"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": f"sell|{type_code}|proletarsky"})}, "label": "Пролетарский"}],
+            [{"action": {"type": "text", "payload": json.dumps({"btn": f"sell|{type_code}|any"})}, "label": "Любой"}]
         ]
     }
 
@@ -330,7 +329,7 @@ def channel_kb():
         "one_time": False,
         "inline": True,
         "buttons": [
-            [{"action": {"type": "open_link", "link": VK_GROUP_LINK}, "color": "primary", "label": "📢 Подписаться на группу"}]
+            [{"action": {"type": "open_link", "link": VK_GROUP_LINK}, "label": "📢 Подписаться на группу"}]
         ]
     }
 
@@ -412,9 +411,9 @@ def handle_callback(user_id, name, btn_data):
             "one_time": False,
             "inline": True,
             "buttons": [
-                [{"action": {"type": "text", "payload": json.dumps({"btn": "invest|i2"})}, "color": "primary", "label": "до 2 млн"}],
-                [{"action": {"type": "text", "payload": json.dumps({"btn": "invest|i5"})}, "color": "primary", "label": "2–5 млн"}],
-                [{"action": {"type": "text", "payload": json.dumps({"btn": "invest|i5p"})}, "color": "primary", "label": "5+ млн"}]
+                [{"action": {"type": "text", "payload": json.dumps({"btn": "invest|i2"})}, "label": "до 2 млн"}],
+                [{"action": {"type": "text", "payload": json.dumps({"btn": "invest|i5"})}, "label": "2–5 млн"}],
+                [{"action": {"type": "text", "payload": json.dumps({"btn": "invest|i5p"})}, "label": "5+ млн"}]
             ]
         }
         vk_send_message(user_id, "📊 Калькулятор инвестора\n\nВыберите бюджет:", invest_kb)
