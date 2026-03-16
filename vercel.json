@@ -1,11 +1,19 @@
 {
   "version": 2,
-  "buildCommand": "echo 'force rebuild' && pip install -r requirements.txt",
   "builds": [
-    {"src": "api/vk_webhook.py", "use": "@vercel/python"}
+    {
+      "src": "api/vk_webhook.py",
+      "use": "@vercel/python"
+    }
   ],
   "routes": [
-    {"src": "/health", "dest": "api/vk_webhook.py"},
-    {"src": "/vk_callback", "dest": "api/vk_webhook.py"}
+    {
+      "src": "/health",
+      "dest": "api/vk_webhook.py"
+    },
+    {
+      "src": "/vk_callback",
+      "dest": "api/vk_webhook.py"
+    }
   ]
 }
