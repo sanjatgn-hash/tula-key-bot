@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Бот ВКонтакте «Тульский ключ» — С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ
+# Бот ВКонтакте «Тульский ключ» — С ПРАВИЛЬНЫМИ КНОПКАМИ VK
 
 import os
 import json
@@ -8,7 +8,7 @@ import requests
 from flask import Flask, request
 from datetime import datetime
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -20,20 +20,17 @@ VK_CONFIRMATION_TOKEN = os.getenv("VK_CONFIRMATION_TOKEN", "")
 VK_ADMIN_ID = os.getenv("VK_ADMIN_ID", "")
 CHECKLIST_URL = os.getenv("CHECKLIST_URL", "")
 VK_GROUP_LINK = os.getenv("VK_GROUP_LINK", "https://vk.com/tula_key")
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "tula_key_channel")
 GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "")
 GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON", "")
 
 logger.info(f"🔍 VK_TOKEN: {'✅' if VK_TOKEN else '❌'}")
 logger.info(f"🔍 VK_GROUP_ID: {'✅' if VK_GROUP_ID else '❌'}")
 logger.info(f"🔍 VK_ADMIN_ID: {'✅' if VK_ADMIN_ID else '❌'}")
-logger.info(f"🔍 GOOGLE_SHEET_ID: {'✅' if GOOGLE_SHEET_ID else '❌'}")
 
 
 # ==================== VK API ====================
 
 def vk_api_call(method, params):
-    logger.debug(f"🔍 vk_api_call: method={method}, params={params}")
     params.update({
         "access_token": VK_TOKEN,
         "v": "5.199",
@@ -41,57 +38,226 @@ def vk_api_call(method, params):
     })
     try:
         resp = requests.post(f"https://api.vk.com/method/{method}", data=params, timeout=10)
-        logger.debug(f"📥 VK API raw response: {resp.text}")
+        result = resp.json()
         
-        response_json = resp.json()
-        logger.debug(f"📥 VK API parsed JSON: {response_json}")
-        
-        # ✅ ПРОВЕРЯЕМ НА ОШИБКУ
-        if "error" in response_json:
-            error = response_json["error"]
-            logger.error(f"❌ VK API ERROR: error_code={error.get('error_code')}, error_msg={error.get('error_msg')}")
-            logger.error(f"💡 Full error: {json.dumps(error, ensure_ascii=False)}")
+        if "error" in result:
+            logger.error(f"❌ VK API ERROR: {result['error']}")
             return None
         
-        result = response_json.get("response", {})
-        logger.debug(f"✅ VK API parsed response: {result}")
-        return result
+        return result.get("response", {})
     except Exception as e:
         logger.error(f"❌ VK API exception: {e}")
-        import traceback
-        logger.error(f"💡 Traceback: {traceback.format_exc()}")
         return None
 
 
-def vk_send_message(user_id, text, buttons=None):
-    logger.info(f"📤 vk_send_message called for user_id={user_id}")
-    logger.debug(f"📝 Message text: {text[:100]}...")
-    
+def vk_send_message(user_id, text, keyboard=None):
     params = {
         "user_id": user_id,
         "message": text,
         "random_id": 0
     }
-    if buttons:
-        params["keyboard"] = json.dumps(buttons, ensure_ascii=False)
-        logger.debug(f"🔘 Keyboard attached")
+    if keyboard:
+        params["keyboard"] = json.dumps(keyboard, ensure_ascii=False)
     
-    logger.info(f"🔍 Calling VK API messages.send...")
     result = vk_api_call("messages.send", params)
-    
-    # ✅ ДОБАВЛЕНО: подробный лог результата
     if result:
-        logger.info(f"✅ Message sent successfully: message_id={result}")
+        logger.info(f"✅ Message sent to {user_id}")
     else:
-        logger.error(f"❌ Failed to send message - vk_api_call returned None")
-        logger.error(f"💡 Check VK_TOKEN permissions and user message settings")
-    
+        logger.error(f"❌ Failed to send message to {user_id}")
     return result
 
-def vk_send_file(user_id, file_url, caption, buttons=None):
-    logger.info(f"📤 vk_send_file called for user_id={user_id}")
-    text = f"{caption}\n\n📎 Файл: {file_url}"
-    return vk_send_message(user_id, text, buttons)
+
+# ==================== VK КЛАВИАТУРЫ (ПРАВИЛЬНЫЙ ФОРМАТ) ====================
+
+def main_menu_kb():
+    """Главное меню — формат VK"""
+    return {
+        "one_time": False,
+        "inline": True,
+        "buttons": [
+            [
+                {
+                    "action": {
+                        "type": "text",
+                        "payload": json.dumps({"command": "get_checklist"})
+                    },
+                    "label": "📥 Получить чек-лист"
+                }
+            ],
+            [
+                {
+                    "action": {
+                        "type": "text",
+                        "payload": json.dumps({"command": "goal_buy"})
+                    },
+                    "label": "🔍 Подобрать квартиру"
+                },
+                {
+                    "action": {
+                        "type": "text",
+                        "payload": json.dumps({"command": "goal_sell"})
+                    },
+                    "label": "💰 Продать"
+                }
+            ],
+            [
+                {
+                    "action": {
+                        "type": "text",
+                        "payload": json.dumps({"command": "goal_invest"})
+                    },
+                    "label": "📊 Инвестиции"
+                },
+                {
+                    "action": {
+                        "type": "text",
+                        "payload": json.dumps({"command": "faq"})
+                    },
+                    "label": "💬 Задать вопрос"
+                }
+            ],
+            [
+                {
+                    "action": {
+                        "type": "text",
+                        "payload": json.dumps({"command": "referral"})
+                    },
+                    "label": "🎁 Пригласить друга"
+                }
+            ]
+        ]
+    }
+
+
+def budget_kb():
+    """Выбор бюджета"""
+    return {
+        "one_time": False,
+        "inline": True,
+        "buttons": [
+            [{"action": {"type": "text", "payload": json.dumps({"command": "budget_3m"})}, "label": "до 3 млн"}],
+            [{"action": {"type": "text", "payload": json.dumps({"command": "budget_5m"})}, "label": "3–5 млн"}],
+            [{"action": {"type": "text", "payload": json.dumps({"command": "budget_5plus"})}, "label": "5+ млн"}],
+            [{"action": {"type": "text", "payload": json.dumps({"command": "budget_help"})}, "label": "Нужна помощь"}]
+        ]
+    }
+
+
+def deadline_kb(budget_code):
+    """Выбор срока"""
+    return {
+        "one_time": False,
+        "inline": True,
+        "buttons": [
+            [{"action": {"type": "text", "payload": json.dumps({"command": f"buy_{budget_code}_urgent"})}, "label": "🔥 Срочно"}],
+            [{"action": {"type": "text", "payload": json.dumps({"command": f"buy_{budget_code}_month"})}, "label": "📅 1-3 мес"}],
+            [{"action": {"type": "text", "payload": json.dumps({"command": f"buy_{budget_code}_look"})}, "label": "👀 Просто смотрю"}]
+        ]
+    }
+
+
+def property_type_kb():
+    """Тип недвижимости"""
+    return {
+        "one_time": False,
+        "inline": True,
+        "buttons": [
+            [{"action": {"type": "text", "payload": json.dumps({"command": "sell_flat"})}, "label": "Квартира"}],
+            [{"action": {"type": "text", "payload": json.dumps({"command": "sell_house"})}, "label": "Дом"}],
+            [{"action": {"type": "text", "payload": json.dumps({"command": "sell_room"})}, "label": "Комната"}],
+            [{"action": {"type": "text", "payload": json.dumps({"command": "sell_other"})}, "label": "Другое"}]
+        ]
+    }
+
+
+def district_kb(type_code):
+    """Район"""
+    return {
+        "one_time": False,
+        "inline": True,
+        "buttons": [
+            [{"action": {"type": "text", "payload": json.dumps({"command": f"sell_{type_code}_center"})}, "label": "Центральный"}],
+            [{"action": {"type": "text", "payload": json.dumps({"command": f"sell_{type_code}_zarechye"})}, "label": "Заречье"}],
+            [{"action": {"type": "text", "payload": json.dumps({"command": f"sell_{type_code}_proletarsky"})}, "label": "Пролетарский"}],
+            [{"action": {"type": "text", "payload": json.dumps({"command": f"sell_{type_code}_any"})}, "label": "Любой"}]
+        ]
+    }
+
+
+def invest_kb():
+    """Инвестиции"""
+    return {
+        "one_time": False,
+        "inline": True,
+        "buttons": [
+            [{"action": {"type": "text", "payload": json.dumps({"command": "invest_i2"})}, "label": "до 2 млн"}],
+            [{"action": {"type": "text", "payload": json.dumps({"command": "invest_i5"})}, "label": "2–5 млн"}],
+            [{"action": {"type": "text", "payload": json.dumps({"command": "invest_i5p"})}, "label": "5+ млн"}]
+        ]
+    }
+
+
+def channel_kb():
+    """Кнопка подписки"""
+    return {
+        "one_time": False,
+        "inline": True,
+        "buttons": [
+            [{"action": {"type": "open_link", "link": VK_GROUP_LINK}, "label": "📢 Подписаться на группу"}]
+        ]
+    }
+
+
+# ==================== МАППИНГИ ====================
+
+BUDGET_MAP = {
+    "budget_3m": "до 3 млн",
+    "budget_5m": "3–5 млн",
+    "budget_5plus": "5+ млн",
+    "budget_help": "Нужна помощь"
+}
+
+DEADLINE_MAP = {
+    "buy_b3_urgent": "🔥 Срочно",
+    "buy_b3_month": "📅 1-3 месяца",
+    "buy_b3_look": "👀 Пока присматриваюсь",
+    "buy_b5_urgent": "🔥 Срочно",
+    "buy_b5_month": "📅 1-3 месяца",
+    "buy_b5_look": "👀 Пока присматриваюсь",
+    "buy_b5p_urgent": "🔥 Срочно",
+    "buy_b5p_month": "📅 1-3 месяца",
+    "buy_b5p_look": "👀 Пока присматриваюсь"
+}
+
+TYPE_MAP = {
+    "sell_flat": "Квартира",
+    "sell_house": "Дом",
+    "sell_room": "Комната",
+    "sell_other": "Другое"
+}
+
+DISTRICT_MAP = {
+    "sell_flat_center": "Центральный",
+    "sell_flat_zarechye": "Заречье",
+    "sell_flat_proletarsky": "Пролетарский",
+    "sell_flat_any": "Любой",
+    "sell_house_center": "Центральный",
+    "sell_house_zarechye": "Заречье",
+    "sell_house_proletarsky": "Пролетарский",
+    "sell_house_any": "Любой"
+}
+
+INVEST_MAP = {
+    "invest_i2": "до 2 млн",
+    "invest_i5": "2–5 млн",
+    "invest_i5p": "5+ млн"
+}
+
+GOAL_MAP = {
+    "buy": ("🏠", "Покупка"),
+    "sell": ("💰", "Продажа"),
+    "invest": ("📊", "Инвестиции")
+}
 
 
 # ==================== GOOGLE SHEETS ====================
@@ -105,10 +271,7 @@ def get_sheet():
             logger.error("❌ Google Sheets credentials not set")
             return None
         
-        scopes = [
-            "https://spreadsheets.google.com/feeds",
-            "https://www.googleapis.com/auth/drive"
-        ]
+        scopes = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds_info = json.loads(GOOGLE_CREDS_JSON)
         creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
         client = gspread.authorize(creds)
@@ -127,7 +290,6 @@ def get_sheet():
 
 
 def save_user_state(chat_id, name, username, data):
-    logger.debug(f"💾 save_user_state: chat_id={chat_id}, data={data}")
     sheet = get_sheet()
     if not sheet:
         return False
@@ -228,7 +390,6 @@ def mark_lead_sent(chat_id):
 
 
 def send_lead_to_admin(name, phone, chat_id, state):
-    logger.info(f"📩 send_lead_to_admin: name={name}, phone={phone}")
     goal_code = state.get('goal', '')
     goal_map = {'buy': ('🏠', 'Покупка'), 'sell': ('💰', 'Продажа'), 'invest': ('📊', 'Инвестиции')}
     emoji, goal_text = goal_map.get(goal_code, ("❓", "Неизвестно"))
@@ -257,231 +418,91 @@ def send_lead_to_admin(name, phone, chat_id, state):
         logger.info(f"📩 Lead notification sent to VK admin {VK_ADMIN_ID}")
 
 
-# ==================== КЛАВИАТУРЫ ====================
-
-def main_menu_kb():
-    # VERSION 2 - Fixed keyboard format
-    return {
-        "inline": True,
-        "buttons": [
-            [
-                {
-                    "action": {
-                        "type": "text",
-                        "payload": "{\"btn\": \"get_checklist\"}"
-                    },
-                    "label": "📥 Получить чек-лист"
-                }
-            ],
-            [
-                {
-                    "action": {
-                        "type": "text",
-                        "payload": "{\"btn\": \"goal_buy\"}"
-                    },
-                    "label": "🔍 Подобрать квартиру"
-                },
-                {
-                    "action": {
-                        "type": "text",
-                        "payload": "{\"btn\": \"goal_sell\"}"
-                    },
-                    "label": "💰 Продать"
-                }
-            ],
-            [
-                {
-                    "action": {
-                        "type": "text",
-                        "payload": "{\"btn\": \"goal_invest\"}"
-                    },
-                    "label": "📊 Инвестиции"
-                },
-                {
-                    "action": {
-                        "type": "text",
-                        "payload": "{\"btn\": \"faq\"}"
-                    },
-                    "label": "💬 Задать вопрос"
-                }
-            ],
-            [
-                {
-                    "action": {
-                        "type": "text",
-                        "payload": "{\"btn\": \"referral\"}"
-                    },
-                    "label": "🎁 Пригласить друга"
-                }
-            ]
-        ]
-    }
-
-def budget_kb():
-    return {
-        "one_time": False,
-        "inline": True,
-        "buttons": [
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "budget_3m"})}, "label": "до 3 млн"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "budget_5m"})}, "label": "3–5 млн"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "budget_5plus"})}, "label": "5+ млн"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "budget_help"})}, "label": "Нужна помощь"}]
-        ]
-    }
-
-
-def deadline_kb(budget_code):
-    return {
-        "one_time": False,
-        "inline": True,
-        "buttons": [
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"buy|{budget_code}|urgent"})}, "label": "🔥 Срочно"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"buy|{budget_code}|month"})}, "label": "📅 1-3 мес"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"buy|{budget_code}|look"})}, "label": "👀 Просто смотрю"}]
-        ]
-    }
-
-
-def property_type_kb():
-    return {
-        "one_time": False,
-        "inline": True,
-        "buttons": [
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "sell|flat"})}, "label": "Квартира"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "sell|house"})}, "label": "Дом"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "sell|room"})}, "label": "Комната"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "sell|other"})}, "label": "Другое"}]
-        ]
-    }
-
-
-def district_kb(type_code):
-    return {
-        "one_time": False,
-        "inline": True,
-        "buttons": [
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"sell|{type_code}|center"})}, "label": "Центральный"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"sell|{type_code}|zarechye"})}, "label": "Заречье"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"sell|{type_code}|proletarsky"})}, "label": "Пролетарский"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": f"sell|{type_code}|any"})}, "label": "Любой"}]
-        ]
-    }
-
-
-def channel_kb():
-    return {
-        "one_time": False,
-        "inline": True,
-        "buttons": [
-            [{"action": {"type": "open_link", "link": VK_GROUP_LINK}, "label": "📢 Подписаться на группу"}]
-        ]
-    }
-
-# ==================== МАППИНГИ ====================
-
-BUDGET_MAP = {"budget_3m": "до 3 млн", "budget_5m": "3–5 млн", "budget_5plus": "5+ млн", "budget_help": "Нужна помощь"}
-DEADLINE_MAP = {"urgent": "🔥 Срочно", "month": "📅 1-3 месяца", "look": "👀 Пока присматриваюсь"}
-TYPE_MAP = {"flat": "Квартира", "house": "Дом", "room": "Комната", "other": "Другое"}
-DISTRICT_MAP = {"center": "Центральный", "zarechye": "Заречье", "proletarsky": "Пролетарский", "any": "Любой"}
-INVEST_MAP = {"i2": "до 2 млн", "i5": "2–5 млн", "i5p": "5+ млн"}
-
-
 # ==================== ОБРАБОТЧИКИ ====================
 
 def handle_start(user_id, name):
-    logger.info(f"🚀 handle_start called for user_id={user_id}, name={name}")
     text = f"🔑 Привет, {name}! Я — помощник «Тульского ключа»\n\nПомогаю найти квартиру в Туле без стресса 🏠\n\n🎁 Подарок: чек-лист «7 ошибок при покупке»\n→ сэкономит от 100 000₽"
-    logger.info(f"📤 Sending start message to {user_id} WITH keyboard")
-    # ✅ ВЕРНУЛИ КЛАВИАТУРУ!
-    response = vk_send_message(user_id, text, main_menu_kb())
-    logger.info(f"📥 handle_start complete, response: {response}")
+    vk_send_message(user_id, text, main_menu_kb())
 
 
-def handle_callback(user_id, name, btn_data):
-    logger.info(f"🔘 handle_callback: user_id={user_id}, btn_data={btn_data}")
+def handle_callback(user_id, name, command):
+    logger.info(f"🔘 handle_callback: command={command}")
     
-    if btn_data == "get_checklist":
-        text = f"🎉 Готово!\n\n📄 <b>Чек-лист «7 ошибок при покупке»</b>\n\n💡 <a href='{CHECKLIST_URL}'>Скачать чек-лист</a> или откройте файл выше 📌\n\nЧтобы я присылал только подходящие варианты, подскажите:"
-        vk_send_file(user_id, CHECKLIST_URL, text)
+    # Чек-лист
+    if command == "get_checklist":
+        text = f"🎉 Готово!\n\n📄 <b>Чек-лист «7 ошибок при покупке»</b>\n\n💡 <a href='{CHECKLIST_URL}'>Скачать чек-лист</a>\n\nЧтобы я присылал только подходящие варианты, выберите цель:"
+        vk_send_message(user_id, text)
         vk_send_message(user_id, "Выберите цель:", main_menu_kb())
         return
     
-    if btn_data == "goal_buy":
+    # Покупка
+    if command == "goal_buy":
         save_user_state(user_id, name, '', {'goal': 'buy'})
         vk_send_message(user_id, f"{name}, понял! 🔑 1️⃣ Ваш бюджет?", budget_kb())
         return
     
-    if btn_data.startswith("budget_"):
-        budget_text = BUDGET_MAP.get(btn_data, "")
+    if command.startswith("budget_"):
+        budget_text = BUDGET_MAP.get(command, "")
         save_user_state(user_id, name, '', {'budget': budget_text})
-        budget_code = btn_data.replace("budget_", "b")
-        if budget_code == "3m": budget_code = "b3"
-        elif budget_code == "5m": budget_code = "b5"
-        elif budget_code == "5plus": budget_code = "b5p"
-        elif budget_code == "help": budget_code = "bhelp"
+        budget_code = command.replace("budget_", "b")
         vk_send_message(user_id, "2️⃣ Когда планируете сделку?", deadline_kb(budget_code))
         return
     
-    if btn_data.startswith("buy|"):
-        parts = btn_data.split("|")
-        if len(parts) == 3:
-            deadline_text = DEADLINE_MAP.get(parts[2], "")
-            save_user_state(user_id, name, '', {'deadline': deadline_text})
-            if parts[2] == "urgent":
-                vk_send_message(user_id, "🔥 Вижу, вы ищете серьёзно!\n\n📞 Напишите ваш номер телефона:\n• +7 999 123-45-67\n• 8-999-123-45-67\n• 9991234567")
-            else:
-                vk_send_message(user_id, f"✅ Понял, вы пока присматриваетесь!\n\n📄 Чек-лист:\n{CHECKLIST_URL}\n\n📢 Подпишитесь на канал:", channel_kb())
+    if command.startswith("buy_b"):
+        deadline_text = DEADLINE_MAP.get(command, "")
+        save_user_state(user_id, name, '', {'deadline': deadline_text})
+        if "urgent" in command:
+            vk_send_message(user_id, "🔥 Вижу, вы ищете серьёзно!\n\n📞 Напишите ваш номер телефона:\n• +7 999 123-45-67\n• 8-999-123-45-67\n• 9991234567")
+        else:
+            vk_send_message(user_id, f"✅ Понял!\n\n📄 Чек-лист: {CHECKLIST_URL}")
+            vk_send_message(user_id, "📢 Подпишитесь на нашу группу:", channel_kb())
         return
     
-    if btn_data == "goal_sell":
+    # Продажа
+    if command == "goal_sell":
         save_user_state(user_id, name, '', {'goal': 'sell'})
         vk_send_message(user_id, f"{name}, помогу продать недвижимость в Туле 🏡\n\n1️⃣ Тип объекта?", property_type_kb())
         return
     
-    if btn_data.startswith("sell|"):
-        parts = btn_data.split("|")
+    if command.startswith("sell_") and "_" in command[5:]:
+        parts = command.split("_")
         if len(parts) == 2:
-            type_text = TYPE_MAP.get(parts[1], "")
+            type_text = TYPE_MAP.get(command, "")
             save_user_state(user_id, name, '', {'prop_type': type_text})
             vk_send_message(user_id, "2️⃣ Район Тулы?", district_kb(parts[1]))
         elif len(parts) == 3:
-            district_text = DISTRICT_MAP.get(parts[2], "")
+            district_text = DISTRICT_MAP.get(command, "")
             save_user_state(user_id, name, '', {'district': district_text})
-            vk_send_message(user_id, "✅ Отлично! 🏡 Я подготовлю оценку и план продажи.\n\n📞 Напишите ваш номер телефона:")
+            vk_send_message(user_id, "✅ Отлично! 🏡 Я подготовлю оценку.\n\n📞 Напишите ваш номер телефона:")
         return
     
-    if btn_data == "goal_invest":
+    # Инвестиции
+    if command == "goal_invest":
         save_user_state(user_id, name, '', {'goal': 'invest'})
-        invest_kb = {
-            "one_time": False,
-            "inline": True,
-            "buttons": [
-                [{"action": {"type": "text", "payload": json.dumps({"btn": "invest|i2"})}, "label": "до 2 млн"}],
-                [{"action": {"type": "text", "payload": json.dumps({"btn": "invest|i5"})}, "label": "2–5 млн"}],
-                [{"action": {"type": "text", "payload": json.dumps({"btn": "invest|i5p"})}, "label": "5+ млн"}]
-            ]
-        }
-        vk_send_message(user_id, "📊 Калькулятор инвестора\n\nВыберите бюджет:", invest_kb)
+        vk_send_message(user_id, "📊 Калькулятор инвестора\n\nВыберите бюджет:", invest_kb())
         return
     
-    if btn_data.startswith("invest|"):
-        invest_text = INVEST_MAP.get(btn_data.split("|")[1], "")
+    if command.startswith("invest_"):
+        invest_text = INVEST_MAP.get(command, "")
         save_user_state(user_id, name, '', {'invest_budget': invest_text})
         vk_send_message(user_id, f"📈 Расчёт готов!\n\n💬 Хотите обсудить? Напишите ваш номер телефона 👇")
         return
     
-    if btn_data == "faq":
+    # FAQ
+    if command == "faq":
         vk_send_message(user_id, "💬 Частые вопросы:\n\n❓ Комиссия? → 2-3%, после сделки\n❓ Ипотека? → Да, со всеми банками\n❓ Проверка? → Юридическая чистота + отчёт")
         return
     
-    if btn_data == "referral":
-        vk_send_message(user_id, f"🤝 Приглашайте — получайте 15 000₽\n\nВаша ссылка:\nvk.com/ваша_группа")
+    # Рефералка
+    if command == "referral":
+        vk_send_message(user_id, f"🤝 Приглашайте — получайте 15 000₽\n\nВаша ссылка:\n{VK_GROUP_LINK}")
         return
 
 
 def handle_message(user_id, name, text):
-    logger.info(f"💬 handle_message: user_id={user_id}, text='{text}'")
+    logger.info(f"💬 handle_message: text='{text}'")
     
+    # Проверка телефона
     cleaned = ''.join(c for c in text if c.isdigit() or c == '+')
     if len(cleaned) >= 10 and (cleaned.startswith('+7') or cleaned.startswith('8') or cleaned.startswith('7') or len(cleaned) == 10):
         phone = cleaned
@@ -511,7 +532,6 @@ def vk_webhook():
     try:
         data = request.get_json(force=True)
         logger.info(f"📬 VK webhook: type={data.get('type', 'unknown')}")
-        logger.debug(f"📋 Full webhook  {json.dumps(data, ensure_ascii=False)[:500]}")
         
         if data.get("type") == "confirmation":
             logger.info(f"✅ Confirmation requested, returning: {VK_CONFIRMATION_TOKEN}")
@@ -521,42 +541,28 @@ def vk_webhook():
         event_type = data.get("type", "")
         
         if event_type == "message_new":
-            # ✅ VK передаёт сообщение внутри object.message
             message = obj.get("message", {})
-            
             user_id = message.get("from_id")
             name = message.get("from_name", "Пользователь")
             text = message.get("text", "")
             
-            logger.info(f"📩 Message received: user_id={user_id}, name={name}, text='{text}'")
-            logger.debug(f"🔍 Full message: {json.dumps(message, ensure_ascii=False)[:300]}")
-            
-            if not user_id:
-                logger.error(f"❌ user_id is None! Full obj: {json.dumps(obj, ensure_ascii=False)[:500]}")
-                return "ok", 200
+            logger.info(f"📩 Message: user_id={user_id}, text='{text}'")
             
             if text in ["/start", "Начать", "Старт", "начать", "старт"]:
-                logger.info(f"✅ Start command matched! Calling handle_start")
                 handle_start(user_id, name)
             else:
-                logger.info(f"⚠️ Not a start command, calling handle_message")
                 handle_message(user_id, name, text)
         
         elif event_type == "message_event":
-            # ✅ Обработка нажатий кнопок
             message = obj.get("message", {})
             payload = json.loads(obj.get("payload", "{}"))
             
-            btn_data = payload.get("btn", "")
+            command = payload.get("command", "")
             user_id = message.get("from_id") or obj.get("user_id")
             name = message.get("from_name", "Пользователь")
             
-            logger.info(f"🔘 Button click: user_id={user_id}, btn_data={btn_data}")
-            
-            if user_id:
-                handle_callback(user_id, name, btn_data)
-            else:
-                logger.error(f"❌ user_id is None in message_event!")
+            logger.info(f"🔘 Button click: command={command}")
+            handle_callback(user_id, name, command)
         
         return "ok", 200
     
