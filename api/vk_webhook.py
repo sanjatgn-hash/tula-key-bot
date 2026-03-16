@@ -303,9 +303,11 @@ def handle_message(user_id, name, text):
     cmd = text.strip().lower()
     state = get_user_state(user_id)
     
-    logger.info(f"User: {name}, Command: {cmd}, State: {state.get('goal') if state else 'None'}")
+    logger.info(f"User: {name}, Text: '{text}', State: {state.get('goal') if state else 'None'}")
     
-    # ТЕЛЕФОН
+    # ============================================
+    # ✅ ТЕЛЕФОН (любой сценарий)
+    # ============================================
     if state and state.get('goal'):
         phone, valid = normalize_phone(text)
         if valid:
@@ -315,81 +317,144 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, f"✅ Спасибо! Телефон: {phone}\nСвяжусь в течение 2 часов!", main_menu_keyboard())
             return
     
-    # КОМАНДЫ
-    if cmd in ["начать", "старт", "/start", "меню"]:
+    # ============================================
+    # ✅ КНОПКИ ГЛАВНОГО МЕНЮ
+    # ============================================
+    
+    # 🔍 ПОДОБРАТЬ КВАРТИРУ
+    if cmd in ["купить", "подобрать квартиру", "🔍 подобрать квартиру"]:
+        save_user_state(user_id, name, {'goal': 'buy'})
+        vk_send_message(user_id, f"{name}, понял! 🔑\n\n1️⃣ Ваш бюджет?", budget_keyboard())
+        return
+    
+    # 💰 ПРОДАТЬ
+    if cmd in ["продать", "💰 продать"]:
+        save_user_state(user_id, name, {'goal': 'sell'})
+        vk_send_message(user_id, f"{name}, помогу продать! 🏡\n\n1️⃣ Тип объекта?", property_type_keyboard())
+        return
+    
+    # 📊 ИНВЕСТИЦИИ
+    if cmd in ["инвест", "инвестиции", "📊 инвестиции"]:
+        save_user_state(user_id, name, {'goal': 'invest'})
+        vk_send_message(user_id, "📊 Инвестиции:\n\nВаш бюджет?", invest_budget_keyboard())
+        return
+    
+    # 💬 ПОМОЩЬ
+    if cmd in ["помощь", "💬 помощь"]:
+        vk_send_message(user_id, """💬 Частые вопросы:
+
+❓ Комиссия? → 2-3%, после сделки
+❓ Ипотека? → Да, со всеми банками
+❓ Проверка? → Юридическая чистота + отчёт""", main_menu_keyboard())
+        return
+    
+    # 🔙 НАЗАД В МЕНЮ
+    if cmd in ["начать", "старт", "/start", "меню", "🔙 в главное меню"]:
         handle_start(user_id, name)
         return
     
-    # BUY
-    if cmd == "купить" or (state and state.get('goal') == 'buy' and not state.get('budget')):
-        if not state or not state.get('goal'):
-            save_user_state(user_id, name, {'goal': 'buy'})
-        budget = extract_budget(text)
-        if budget:
-            save_user_state(user_id, name, {'budget': budget})
-            vk_send_message(user_id, f"✅ {budget}₽\n\n2️⃣ Срок?", deadline_keyboard())
-            return
-        elif cmd == "купить":
-            vk_send_message(user_id, f"{name}, 1️⃣ Ваш бюджет?", budget_keyboard())
-            return
+    # ============================================
+    # ✅ СЦЕНАРИЙ ПОКУПКИ
+    # ============================================
+    if state and state.get('goal') == 'buy':
+        
+        # Шаг 1: Бюджет
+        if not state.get('budget'):
+            budget = extract_budget(text)
+            if budget:
+                save_user_state(user_id, name, {'budget': budget})
+                vk_send_message(user_id, f"✅ Бюджет: {budget}₽\n\n2️⃣ Когда планируете?", deadline_keyboard())
+                return
+            else:
+                vk_send_message(user_id, f"{name}, напишите бюджет цифрами (например: 5000000 или 5 млн)", budget_keyboard())
+                return
+        
+        # Шаг 2: Срок
+        if state.get('budget') and not state.get('deadline'):
+            if 'срочно' in cmd or 'неделю' in cmd:
+                save_user_state(user_id, name, {'deadline': 'Срочно'})
+                vk_send_message(user_id, "🔥 Отлично!\n\n📞 Напишите телефон:", back_menu_keyboard())
+                return
+            if 'месяц' in cmd or '3 месяца' in cmd:
+                save_user_state(user_id, name, {'deadline': '1-3 месяца'})
+                vk_send_message(user_id, "📅 Принято!\n\n📞 Напишите телефон:", back_menu_keyboard())
+                return
+            if 'смотр' in cmd or 'присматриваюсь' in cmd:
+                save_user_state(user_id, name, {'deadline': 'Присматриваюсь'})
+                vk_send_message(user_id, "👌 Понял!\n\n📞 Напишите телефон:", back_menu_keyboard())
+                return
+            else:
+                vk_send_message(user_id, "Напишите: срочно, месяц или смотрю", deadline_keyboard())
+                return
     
-    if state and state.get('goal') == 'buy' and state.get('budget') and not state.get('deadline'):
-        if 'срочно' in cmd:
-            save_user_state(user_id, name, {'deadline': 'Срочно'})
-            vk_send_message(user_id, "🔥 Принято!\n\n📞 Телефон:", back_menu_keyboard())
-            return
-        if 'месяц' in cmd:
-            save_user_state(user_id, name, {'deadline': '1-3 месяца'})
-            vk_send_message(user_id, "📅 Принято!\n\n📞 Телефон:", back_menu_keyboard())
-            return
+    # ============================================
+    # ✅ СЦЕНАРИЙ ПРОДАЖИ
+    # ============================================
+    if state and state.get('goal') == 'sell':
+        
+        # Шаг 1: Тип объекта
+        if not state.get('prop_type'):
+            if 'квартира' in cmd:
+                save_user_state(user_id, name, {'prop_type': 'Квартира'})
+                vk_send_message(user_id, "✅ Квартира\n\n2️⃣ Район?", district_keyboard())
+                return
+            if 'дом' in cmd:
+                save_user_state(user_id, name, {'prop_type': 'Дом'})
+                vk_send_message(user_id, "✅ Дом\n\n2️⃣ Район?", district_keyboard())
+                return
+            if 'комната' in cmd:
+                save_user_state(user_id, name, {'prop_type': 'Комната'})
+                vk_send_message(user_id, "✅ Комната\n\n2️⃣ Район?", district_keyboard())
+                return
+            if 'другое' in cmd:
+                save_user_state(user_id, name, {'prop_type': 'Другое'})
+                vk_send_message(user_id, "✅ Другое\n\n2️⃣ Район?", district_keyboard())
+                return
+            else:
+                vk_send_message(user_id, f"{name}, напишите: квартира, дом, комната или другое", property_type_keyboard())
+                return
+        
+        # Шаг 2: Район
+        if state.get('prop_type') and not state.get('district'):
+            if 'центр' in cmd:
+                save_user_state(user_id, name, {'district': 'Центральный'})
+                vk_send_message(user_id, "✅ Центр\n\n📞 Напишите телефон:", back_menu_keyboard())
+                return
+            if 'заречье' in cmd:
+                save_user_state(user_id, name, {'district': 'Заречье'})
+                vk_send_message(user_id, "✅ Заречье\n\n📞 Напишите телефон:", back_menu_keyboard())
+                return
+            if 'пролетарский' in cmd:
+                save_user_state(user_id, name, {'district': 'Пролетарский'})
+                vk_send_message(user_id, "✅ Пролетарский\n\n📞 Напишите телефон:", back_menu_keyboard())
+                return
+            if 'любой' in cmd:
+                save_user_state(user_id, name, {'district': 'Любой'})
+                vk_send_message(user_id, "✅ Любой\n\n📞 Напишите телефон:", back_menu_keyboard())
+                return
+            else:
+                vk_send_message(user_id, "Напишите: центр, заречье, пролетарский или любой", district_keyboard())
+                return
     
-    # SELL
-    if cmd == "продать" or (state and state.get('goal') == 'sell' and not state.get('prop_type')):
-        if not state or not state.get('goal'):
-            save_user_state(user_id, name, {'goal': 'sell'})
-        if cmd == "продать":
-            vk_send_message(user_id, f"{name}, 1️⃣ Тип объекта?", property_type_keyboard())
-            return
-        if 'квартира' in cmd:
-            save_user_state(user_id, name, {'prop_type': 'Квартира'})
-            vk_send_message(user_id, "✅ Квартира\n\n2️⃣ Район?", district_keyboard())
-            return
-        if 'дом' in cmd:
-            save_user_state(user_id, name, {'prop_type': 'Дом'})
-            vk_send_message(user_id, "✅ Дом\n\n2️⃣ Район?", district_keyboard())
-            return
+    # ============================================
+    # ✅ СЦЕНАРИЙ ИНВЕСТИЦИЙ
+    # ============================================
+    if state and state.get('goal') == 'invest':
+        
+        # Шаг 1: Бюджет
+        if not state.get('invest_budget'):
+            budget = extract_budget(text)
+            if budget:
+                save_user_state(user_id, name, {'invest_budget': budget})
+                vk_send_message(user_id, f"📈 Бюджет: {budget}₽\n\n💬 Напишите телефон:", back_menu_keyboard())
+                return
+            else:
+                vk_send_message(user_id, "Напишите бюджет (например: 2000000 или 2 млн)", invest_budget_keyboard())
+                return
     
-    if state and state.get('goal') == 'sell' and state.get('prop_type') and not state.get('district'):
-        if 'центр' in cmd:
-            save_user_state(user_id, name, {'district': 'Центральный'})
-            vk_send_message(user_id, "✅ Центр\n\n📞 Телефон:", back_menu_keyboard())
-            return
-        if 'заречье' in cmd:
-            save_user_state(user_id, name, {'district': 'Заречье'})
-            vk_send_message(user_id, "✅ Заречье\n\n📞 Телефон:", back_menu_keyboard())
-            return
-    
-    # INVEST
-    if cmd == "инвест" or (state and state.get('goal') == 'invest' and not state.get('invest_budget')):
-        if not state or not state.get('goal'):
-            save_user_state(user_id, name, {'goal': 'invest'})
-        budget = extract_budget(text)
-        if budget:
-            save_user_state(user_id, name, {'invest_budget': budget})
-            vk_send_message(user_id, f"✅ {budget}₽\n\n📞 Телефон:", back_menu_keyboard())
-            return
-        elif cmd == "инвест":
-            vk_send_message(user_id, "📊 Ваш бюджет?", invest_budget_keyboard())
-            return
-    
-    # HELP
-    if cmd == "помощь":
-        vk_send_message(user_id, """💬 Частые вопросы:
-❓ Комиссия: 2-3%
-❓ Ипотека: да
-❓ Проверка: юридическая чистота""", main_menu_keyboard())
-        return
-    
+    # ============================================
+    # ❌ НЕИЗВЕСТНОЕ
+    # ============================================
     vk_send_message(user_id, f"👋 {name}, выберите действие:", main_menu_keyboard())
 
 
