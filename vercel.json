@@ -1,20 +1,19 @@
 {
   "version": 2,
-  "buildCommand": "pip install -r requirements.txt --force-reinstall",
   "builds": [
     {
-      "src": "api/vk_webhook.py",
+      "src": "api/vk_bot.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/health",
-      "dest": "api/vk_webhook.py"
+      "dest": "api/vk_bot.py"
     },
     {
       "src": "/vk_callback",
-      "dest": "api/vk_webhook.py"
+      "dest": "api/vk_bot.py"
     }
   ]
 }
