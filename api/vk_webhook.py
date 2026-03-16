@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Бот ВКонтакте «Тульский ключ» — Полностью независимый
+# Бот ВКонтакте «Тульский ключ» — С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ
 
 import os
 import json
@@ -8,7 +8,7 @@ import requests
 from flask import Flask, request
 from datetime import datetime
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -33,6 +33,7 @@ logger.info(f"🔍 GOOGLE_SHEET_ID: {'✅' if GOOGLE_SHEET_ID else '❌'}")
 # ==================== VK API ====================
 
 def vk_api_call(method, params):
+    logger.debug(f"🔍 vk_api_call: method={method}, params={params}")
     params.update({
         "access_token": VK_TOKEN,
         "v": "5.199",
@@ -40,13 +41,21 @@ def vk_api_call(method, params):
     })
     try:
         resp = requests.post(f"https://api.vk.com/method/{method}", data=params, timeout=10)
-        return resp.json().get("response", {})
+        logger.debug(f"📥 VK API raw response: {resp.text}")
+        result = resp.json().get("response", {})
+        logger.debug(f"✅ VK API parsed response: {result}")
+        return result
     except Exception as e:
         logger.error(f"❌ VK API error: {e}")
+        import traceback
+        logger.error(f"💡 Traceback: {traceback.format_exc()}")
         return None
 
 
 def vk_send_message(user_id, text, buttons=None):
+    logger.info(f"📤 vk_send_message called for user_id={user_id}")
+    logger.debug(f"📝 Message text: {text[:100]}...")
+    
     params = {
         "user_id": user_id,
         "message": text,
@@ -54,10 +63,21 @@ def vk_send_message(user_id, text, buttons=None):
     }
     if buttons:
         params["keyboard"] = json.dumps(buttons, ensure_ascii=False)
-    return vk_api_call("messages.send", params)
+        logger.debug(f"🔘 Keyboard attached")
+    
+    logger.info(f"🔍 Calling VK API messages.send...")
+    result = vk_api_call("messages.send", params)
+    
+    if result:
+        logger.info(f"✅ Message sent successfully: {result}")
+    else:
+        logger.error(f"❌ Failed to send message")
+    
+    return result
 
 
 def vk_send_file(user_id, file_url, caption, buttons=None):
+    logger.info(f"📤 vk_send_file called for user_id={user_id}")
     text = f"{caption}\n\n📎 Файл: {file_url}"
     return vk_send_message(user_id, text, buttons)
 
@@ -95,6 +115,7 @@ def get_sheet():
 
 
 def save_user_state(chat_id, name, username, data):
+    logger.debug(f"💾 save_user_state: chat_id={chat_id}, data={data}")
     sheet = get_sheet()
     if not sheet:
         return False
@@ -195,6 +216,7 @@ def mark_lead_sent(chat_id):
 
 
 def send_lead_to_admin(name, phone, chat_id, state):
+    logger.info(f"📩 send_lead_to_admin: name={name}, phone={phone}")
     goal_code = state.get('goal', '')
     goal_map = {'buy': ('🏠', 'Покупка'), 'sell': ('💰', 'Продажа'), 'invest': ('📊', 'Инвестиции')}
     emoji, goal_text = goal_map.get(goal_code, ("❓", "Неизвестно"))
@@ -313,11 +335,16 @@ INVEST_MAP = {"i2": "до 2 млн", "i5": "2–5 млн", "i5p": "5+ млн"}
 # ==================== ОБРАБОТЧИКИ ====================
 
 def handle_start(user_id, name):
+    logger.info(f"🚀 handle_start called for user_id={user_id}, name={name}")
     text = f"🔑 Привет, {name}! Я — помощник «Тульского ключа»\n\nПомогаю найти квартиру в Туле без стресса 🏠\n\n🎁 Подарок: чек-лист «7 ошибок при покупке»\n→ сэкономит от 100 000₽"
-    vk_send_message(user_id, text, main_menu_kb())
+    logger.info(f"📤 Sending start message to {user_id}")
+    response = vk_send_message(user_id, text, main_menu_kb())
+    logger.info(f"📥 handle_start complete, response: {response}")
 
 
 def handle_callback(user_id, name, btn_data):
+    logger.info(f"🔘 handle_callback: user_id={user_id}, btn_data={btn_data}")
+    
     if btn_data == "get_checklist":
         text = f"🎉 Готово!\n\n📄 <b>Чек-лист «7 ошибок при покупке»</b>\n\n💡 <a href='{CHECKLIST_URL}'>Скачать чек-лист</a> или откройте файл выше 📌\n\nЧтобы я присылал только подходящие варианты, подскажите:"
         vk_send_file(user_id, CHECKLIST_URL, text)
@@ -398,6 +425,8 @@ def handle_callback(user_id, name, btn_data):
 
 
 def handle_message(user_id, name, text):
+    logger.info(f"💬 handle_message: user_id={user_id}, text='{text}'")
+    
     cleaned = ''.join(c for c in text if c.isdigit() or c == '+')
     if len(cleaned) >= 10 and (cleaned.startswith('+7') or cleaned.startswith('8') or cleaned.startswith('7') or len(cleaned) == 10):
         phone = cleaned
@@ -426,10 +455,11 @@ def handle_message(user_id, name, text):
 def vk_webhook():
     try:
         data = request.get_json(force=True)
-        logger.info(f"📬 VK webhook: {data.get('type', 'unknown')}")
+        logger.info(f"📬 VK webhook: type={data.get('type', 'unknown')}")
+        logger.debug(f"📋 Full webhook data: {json.dumps(data, ensure_ascii=False)[:500]}")
         
         if data.get("type") == "confirmation":
-            logger.info("✅ VK confirmation requested")
+            logger.info(f"✅ Confirmation requested, returning: {VK_CONFIRMATION_TOKEN}")
             return VK_CONFIRMATION_TOKEN, 200
         
         obj = data.get("object", {})
@@ -440,9 +470,13 @@ def vk_webhook():
             name = obj.get("from_name", "Пользователь")
             text = obj.get("text", "")
             
+            logger.info(f"📩 Message received: user_id={user_id}, name={name}, text='{text}'")
+            
             if text in ["/start", "Начать", "Старт", "начать", "старт"]:
+                logger.info(f"✅ Start command matched! Calling handle_start")
                 handle_start(user_id, name)
             else:
+                logger.info(f"⚠️ Not a start command, calling handle_message")
                 handle_message(user_id, name, text)
         
         elif event_type == "message_event":
@@ -451,12 +485,15 @@ def vk_webhook():
             user_id = obj.get("user_id")
             name = obj.get("from_name", "Пользователь")
             
+            logger.info(f"🔘 Button click: user_id={user_id}, btn_data={btn_data}")
             handle_callback(user_id, name, btn_data)
         
         return "ok", 200
     
     except Exception as e:
         logger.error(f"❌ VK webhook error: {e}")
+        import traceback
+        logger.error(f"💡 Traceback: {traceback.format_exc()}")
         return "error", 500
 
 
