@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Tula Key Bot — VKontakte with Working Inline Buttons
+# Tula Key Bot — VKontakte with CALLBACK Buttons (WORKING)
 
 import os
 import json
@@ -76,106 +76,108 @@ def vk_api_call(method, params):
 def vk_send_message(user_id, text, keyboard=None):
     params = {"user_id": user_id, "message": text, "random_id": 0}
     if keyboard:
-        # ✅ ПРАВИЛЬНЫЙ ФОРМАТ: ensure_ascii=False для кириллицы
         params["keyboard"] = json.dumps(keyboard, ensure_ascii=False)
-        logger.info(f"Sending keyboard: {json.dumps(keyboard, ensure_ascii=False)[:200]}")
     result = vk_api_call("messages.send", params)
     logger.info(f"Message sent to {user_id}" if result else f"Failed to send to {user_id}")
     return result
 
 
-# ==================== KEYBOARDS (ПРАВИЛЬНЫЙ ФОРМАТ VK) ====================
+def send_callback_answer(event_id, user_id, event_data):
+    """Ответ на callback кнопку"""
+    params = {
+        "event_id": event_id,
+        "user_id": user_id,
+        "event_data": json.dumps(event_data)
+    }
+    return vk_api_call("messages.sendMessageEventAnswer", params)
+
+
+# ==================== KEYBOARDS (CALLBACK TYPE - NO EMOJI IN LABEL) ====================
 
 def main_menu_kb():
-    """Главное меню — 2 кнопки в ряду"""
+    """Главное меню — БЕЗ ЭМОДЗИ в label (VK требует!)"""
     return {
         "inline": True,
         "buttons": [
             [
-                {"action": {"type": "text", "payload": "{\"cmd\":\"buy\"}"}, "label": "🔍 Подобрать квартиру"}
+                {"action": {"type": "callback", "payload": "{\"cmd\":\"buy\"}"}, "label": "Подобрать квартиру"}
             ],
             [
-                {"action": {"type": "text", "payload": "{\"cmd\":\"sell\"}"}, "label": "💰 Продать"}
+                {"action": {"type": "callback", "payload": "{\"cmd\":\"sell\"}"}, "label": "Продать"}
             ],
             [
-                {"action": {"type": "text", "payload": "{\"cmd\":\"invest\"}"}, "label": "📊 Инвестиции"}
+                {"action": {"type": "callback", "payload": "{\"cmd\":\"invest\"}"}, "label": "Инвестиции"}
             ],
             [
-                {"action": {"type": "text", "payload": "{\"cmd\":\"help\"}"}, "label": "💬 Помощь"}
+                {"action": {"type": "callback", "payload": "{\"cmd\":\"help\"}"}, "label": "Помощь"}
             ]
         ]
     }
 
 
 def budget_kb():
-    """Выбор бюджета — по 1 кнопке в ряду"""
     return {
         "inline": True,
         "buttons": [
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"budget\",\"val\":\"до 3 млн\"}"}, "label": "до 3 млн"}],
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"budget\",\"val\":\"3-5 млн\"}"}, "label": "3–5 млн"}],
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"budget\",\"val\":\"5+ млн\"}"}, "label": "5+ млн"}],
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"budget\",\"val\":\"Нужна помощь\"}"}, "label": "Нужна помощь"}]
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"budget\",\"val\":\"do3\"}"}, "label": "до 3 млн"}],
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"budget\",\"val\":\"3-5\"}"}, "label": "3-5 млн"}],
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"budget\",\"val\":\"5plus\"}"}, "label": "5+ млн"}],
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"budget\",\"val\":\"help\"}"}, "label": "Нужна помощь"}]
         ]
     }
 
 
 def deadline_kb():
-    """Выбор срока"""
     return {
         "inline": True,
         "buttons": [
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"deadline\",\"val\":\"Срочно\"}"}, "label": "🔥 Срочно"}],
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"deadline\",\"val\":\"1-3 месяца\"}"}, "label": "📅 1-3 месяца"}],
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"deadline\",\"val\":\"Присматриваюсь\"}"}, "label": "👀 Просто смотрю"}]
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"deadline\",\"val\":\"urgent\"}"}, "label": "Срочно"}],
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"deadline\",\"val\":\"month\"}"}, "label": "1-3 месяца"}],
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"deadline\",\"val\":\"looking\"}"}, "label": "Присматриваюсь"}]
         ]
     }
 
 
 def property_type_kb():
-    """Тип недвижимости"""
     return {
         "inline": True,
         "buttons": [
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"prop_type\",\"val\":\"Квартира\"}"}, "label": "Квартира"}],
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"prop_type\",\"val\":\"Дом\"}"}, "label": "Дом"}],
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"prop_type\",\"val\":\"Комната\"}"}, "label": "Комната"}],
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"prop_type\",\"val\":\"Другое\"}"}, "label": "Другое"}]
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"prop_type\",\"val\":\"flat\"}"}, "label": "Квартира"}],
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"prop_type\",\"val\":\"house\"}"}, "label": "Дом"}],
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"prop_type\",\"val\":\"room\"}"}, "label": "Комната"}],
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"prop_type\",\"val\":\"other\"}"}, "label": "Другое"}]
         ]
     }
 
 
 def district_kb():
-    """Район"""
     return {
         "inline": True,
         "buttons": [
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"district\",\"val\":\"Центральный\"}"}, "label": "Центральный"}],
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"district\",\"val\":\"Заречье\"}"}, "label": "Заречье"}],
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"district\",\"val\":\"Пролетарский\"}"}, "label": "Пролетарский"}],
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"district\",\"val\":\"Любой\"}"}, "label": "Любой"}]
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"district\",\"val\":\"center\"}"}, "label": "Центральный"}],
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"district\",\"val\":\"zarechye\"}"}, "label": "Заречье"}],
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"district\",\"val\":\"proletarsky\"}"}, "label": "Пролетарский"}],
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"district\",\"val\":\"any\"}"}, "label": "Любой"}]
         ]
     }
 
 
 def invest_budget_kb():
-    """Бюджет инвестиций"""
     return {
         "inline": True,
         "buttons": [
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"invest_budget\",\"val\":\"до 2 млн\"}"}, "label": "до 2 млн"}],
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"invest_budget\",\"val\":\"2-5 млн\"}"}, "label": "2–5 млн"}],
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"invest_budget\",\"val\":\"5+ млн\"}"}, "label": "5+ млн"}]
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"invest_budget\",\"val\":\"do2\"}"}, "label": "до 2 млн"}],
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"invest_budget\",\"val\":\"2-5\"}"}, "label": "2-5 млн"}],
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"invest_budget\",\"val\":\"5plus\"}"}, "label": "5+ млн"}]
         ]
     }
 
 
 def back_menu_kb():
-    """Назад в меню"""
     return {
         "inline": True,
         "buttons": [
-            [{"action": {"type": "text", "payload": "{\"cmd\":\"menu\"}"}, "label": "🔙 В меню"}]
+            [{"action": {"type": "callback", "payload": "{\"cmd\":\"menu\"}"}, "label": "В меню"}]
         ]
     }
 
@@ -275,12 +277,15 @@ def handle_start(user_id, name):
     vk_send_message(user_id, text, main_menu_kb())
 
 
-def handle_callback(user_id, name, payload):
+def handle_callback(user_id, name, payload, event_id):
     cmd = payload.get("cmd")
     val = payload.get("val")
     state = get_user_state(user_id)
     
     logger.info(f"Callback: cmd={cmd}, val={val}")
+    
+    # Ответ VK что кнопка нажата
+    send_callback_answer(event_id, user_id, {"type": "show_snackbar", "text": "Загрузка..."})
     
     if cmd == "menu":
         handle_start(user_id, name)
@@ -292,12 +297,16 @@ def handle_callback(user_id, name, payload):
         return
     
     if cmd == "budget" and val:
-        save_user_state(user_id, name, {'budget': val})
-        vk_send_message(user_id, f"✅ {val}\n\n2️⃣ Когда планируете?", deadline_kb())
+        budget_map = {"do3": "до 3 млн", "3-5": "3-5 млн", "5plus": "5+ млн", "help": "Нужна помощь"}
+        budget_text = budget_map.get(val, val)
+        save_user_state(user_id, name, {'budget': budget_text})
+        vk_send_message(user_id, f"✅ {budget_text}\n\n2️⃣ Когда планируете?", deadline_kb())
         return
     
     if cmd == "deadline" and val:
-        save_user_state(user_id, name, {'deadline': val})
+        deadline_map = {"urgent": "Срочно", "month": "1-3 месяца", "looking": "Присматриваюсь"}
+        deadline_text = deadline_map.get(val, val)
+        save_user_state(user_id, name, {'deadline': deadline_text})
         vk_send_message(user_id, "🔥 Отлично!\n\n📞 Напишите телефон:", back_menu_kb())
         return
     
@@ -307,12 +316,16 @@ def handle_callback(user_id, name, payload):
         return
     
     if cmd == "prop_type" and val:
-        save_user_state(user_id, name, {'prop_type': val})
-        vk_send_message(user_id, f"✅ {val}\n\n2️⃣ Район?", district_kb())
+        prop_map = {"flat": "Квартира", "house": "Дом", "room": "Комната", "other": "Другое"}
+        prop_text = prop_map.get(val, val)
+        save_user_state(user_id, name, {'prop_type': prop_text})
+        vk_send_message(user_id, f"✅ {prop_text}\n\n2️⃣ Район?", district_kb())
         return
     
     if cmd == "district" and val:
-        save_user_state(user_id, name, {'district': val})
+        district_map = {"center": "Центральный", "zarechye": "Заречье", "proletarsky": "Пролетарский", "any": "Любой"}
+        district_text = district_map.get(val, val)
+        save_user_state(user_id, name, {'district': district_text})
         vk_send_message(user_id, "✅ Готово!\n\n📞 Напишите телефон:", back_menu_kb())
         return
     
@@ -322,8 +335,10 @@ def handle_callback(user_id, name, payload):
         return
     
     if cmd == "invest_budget" and val:
-        save_user_state(user_id, name, {'invest_budget': val})
-        vk_send_message(user_id, f"✅ {val}\n\n📞 Напишите телефон:", back_menu_kb())
+        invest_map = {"do2": "до 2 млн", "2-5": "2-5 млн", "5plus": "5+ млн"}
+        invest_text = invest_map.get(val, val)
+        save_user_state(user_id, name, {'invest_budget': invest_text})
+        vk_send_message(user_id, f"✅ {invest_text}\n\n📞 Напишите телефон:", back_menu_kb())
         return
     
     if cmd == "help":
@@ -372,36 +387,6 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, "📅 Принято!\n\n📞 Телефон:", back_menu_kb())
             return
     
-    # ТИП ТЕКСТОМ
-    if state and state.get('goal') == 'sell' and not state.get('prop_type'):
-        if 'квартира' in cmd:
-            save_user_state(user_id, name, {'prop_type': 'Квартира'})
-            vk_send_message(user_id, "✅ Квартира\n\n2️⃣ Район?", district_kb())
-            return
-        if 'дом' in cmd:
-            save_user_state(user_id, name, {'prop_type': 'Дом'})
-            vk_send_message(user_id, "✅ Дом\n\n2️⃣ Район?", district_kb())
-            return
-    
-    # РАЙОН ТЕКСТОМ
-    if state and state.get('goal') == 'sell' and state.get('prop_type') and not state.get('district'):
-        if 'центр' in cmd:
-            save_user_state(user_id, name, {'district': 'Центральный'})
-            vk_send_message(user_id, "✅ Центр\n\n📞 Телефон:", back_menu_kb())
-            return
-        if 'заречье' in cmd:
-            save_user_state(user_id, name, {'district': 'Заречье'})
-            vk_send_message(user_id, "✅ Заречье\n\n📞 Телефон:", back_menu_kb())
-            return
-    
-    # БЮДЖЕТ ИНВЕСТИЦИЙ ТЕКСТОМ
-    if state and state.get('goal') == 'invest' and not state.get('invest_budget'):
-        budget = extract_budget(text)
-        if budget:
-            save_user_state(user_id, name, {'invest_budget': budget})
-            vk_send_message(user_id, f"✅ {budget}₽\n\n📞 Телефон:", back_menu_kb())
-            return
-    
     vk_send_message(user_id, f"👋 {name}, выберите действие:", main_menu_kb())
 
 
@@ -419,6 +404,7 @@ def vk_webhook():
         obj = data.get("object", {})
         event_type = data.get("type")
         
+        # СООБЩЕНИЕ (текст)
         if event_type == "message_new":
             msg = obj.get("message", {})
             user_id = msg.get("from_id")
@@ -427,6 +413,18 @@ def vk_webhook():
             logger.info(f"Message: user={user_id}, name={name}, text='{text}'")
             if user_id:
                 handle_message(user_id, name, text)
+            return "ok", 200
+        
+        # НАЖАТИЕ КНОПКИ (callback)
+        if event_type == "message_event":
+            msg = obj.get("message", {})
+            user_id = msg.get("from_id") or obj.get("user_id")
+            name = msg.get("from_name") or "Пользователь"
+            payload = json.loads(obj.get("payload", "{}"))
+            event_id = obj.get("event_id")
+            logger.info(f"Callback: user={user_id}, payload={payload}, event_id={event_id}")
+            if user_id:
+                handle_callback(user_id, name, payload, event_id)
             return "ok", 200
         
         return "ok", 200
