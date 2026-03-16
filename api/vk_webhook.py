@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Tula Key Bot — MINIMAL TEST
+# Tula Key Bot — CALLBACK BUTTONS (WORKING)
 
 import os
 import json
@@ -17,7 +17,6 @@ VK_GROUP_ID = os.getenv("VK_GROUP_ID", "")
 VK_CONFIRMATION_TOKEN = os.getenv("VK_CONFIRMATION_TOKEN", "")
 
 logger.info(f"VK_TOKEN: {'OK' if VK_TOKEN else 'MISSING'}")
-logger.info(f"VK_GROUP_ID: {'OK' if VK_GROUP_ID else 'MISSING'}")
 
 
 def vk_api_call(method, params):
@@ -37,29 +36,36 @@ def vk_api_call(method, params):
 def vk_send_message(user_id, text, keyboard=None):
     params = {"user_id": user_id, "message": text, "random_id": 0}
     if keyboard:
-        # ✅ БЕЗ ensure_ascii - пробуем стандартную кодировку
         params["keyboard"] = json.dumps(keyboard)
-        logger.info(f"Keyboard JSON: {json.dumps(keyboard)}")
     result = vk_api_call("messages.send", params)
     logger.info(f"Sent: {user_id}" if result else f"Failed: {user_id}")
     return result
 
 
-# ==================== MINIMAL KEYBOARD ====================
+def send_callback_answer(event_id, user_id, event_data):
+    """ОБЯЗАТЕЛЬНО для callback кнопок!"""
+    params = {
+        "event_id": event_id,
+        "user_id": user_id,
+        "event_data": json.dumps(event_data)
+    }
+    return vk_api_call("messages.sendMessageEventAnswer", params)
 
-def minimal_kb():
-    """Абсолютно минимальная клавиатура"""
+
+# ==================== CALLBACK KEYBOARD ====================
+
+def test_kb():
+    """Callback клавиатура — ПРАВИЛЬНЫЙ ФОРМАТ"""
     return {
-        "one_time": False,
         "inline": True,
         "buttons": [
             [
                 {
                     "action": {
-                        "type": "text",
-                        "payload": "{}"
+                        "type": "callback",
+                        "payload": json.dumps({"test": "1"})
                     },
-                    "label": "A"
+                    "label": "Test"
                 }
             ]
         ]
@@ -69,14 +75,28 @@ def minimal_kb():
 # ==================== HANDLERS ====================
 
 def handle_start(user_id, name):
-    vk_send_message(user_id, f"Hi {name}! Test:", minimal_kb())
+    vk_send_message(user_id, f"Hi {name}! Click button:", test_kb())
+
+
+def handle_callback(user_id, name, payload, event_id):
+    """Обработка нажатия callback кнопки"""
+    logger.info(f"Callback received: {payload}")
+    
+    # ✅ ОБЯЗАТЕЛЬНО: ответить VK что кнопка нажата
+    send_callback_answer(event_id, user_id, {
+        "type": "show_snackbar",
+        "text": "Button clicked!"
+    })
+    
+    # Отправить сообщение
+    vk_send_message(user_id, f"✅ Button works! Payload: {payload}", test_kb())
 
 
 def handle_message(user_id, name, text):
-    if text.lower() in ["start", "начать", "тест", "test"]:
+    if text.lower() in ["start", "начать", "тест"]:
         handle_start(user_id, name)
         return
-    vk_send_message(user_id, f"Echo: {text}", minimal_kb())
+    vk_send_message(user_id, f"Echo: {text}", test_kb())
 
 
 # ==================== WEBHOOK ====================
@@ -90,8 +110,12 @@ def vk_webhook():
         if data.get("type") == "confirmation":
             return VK_CONFIRMATION_TOKEN, 200
         
-        if data.get("type") == "message_new":
-            msg = data.get("object", {}).get("message", {})
+        obj = data.get("object", {})
+        event_type = data.get("type")
+        
+        # ✅ СООБЩЕНИЕ (текст)
+        if event_type == "message_new":
+            msg = obj.get("message", {})
             user_id = msg.get("from_id")
             name = msg.get("from_name", "User")
             text = msg.get("text", "")
@@ -100,9 +124,23 @@ def vk_webhook():
                 handle_message(user_id, name, text)
             return "ok", 200
         
+        # ✅ НАЖАТИЕ КНОПКИ (callback)
+        if event_type == "message_event":
+            msg = obj.get("message", {})
+            user_id = msg.get("from_id") or obj.get("user_id")
+            name = msg.get("from_name", "User")
+            payload = json.loads(obj.get("payload", "{}"))
+            event_id = obj.get("event_id")
+            logger.info(f"Callback: {user_id}, payload={payload}, event_id={event_id}")
+            if user_id:
+                handle_callback(user_id, name, payload, event_id)
+            return "ok", 200
+        
         return "ok", 200
     except Exception as e:
         logger.error(f"Error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return "error", 500
 
 
