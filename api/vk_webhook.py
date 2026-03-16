@@ -261,15 +261,58 @@ def send_lead_to_admin(name, phone, chat_id, state):
 
 def main_menu_kb():
     return {
-        "one_time": False,
         "inline": True,
         "buttons": [
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "get_checklist"})}, "label": "📥 Получить чек-лист"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "goal_buy"})}, "label": "🔍 Подобрать квартиру"},
-             {"action": {"type": "text", "payload": json.dumps({"btn": "goal_sell"})}, "label": "💰 Продать"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "goal_invest"})}, "label": "📊 Инвестиции"},
-             {"action": {"type": "text", "payload": json.dumps({"btn": "faq"})}, "label": "💬 Задать вопрос"}],
-            [{"action": {"type": "text", "payload": json.dumps({"btn": "referral"})}, "label": "🎁 Пригласить друга"}]
+            [
+                {
+                    "action": {
+                        "type": "text",
+                        "payload": "{\"btn\": \"get_checklist\"}"
+                    },
+                    "label": "📥 Получить чек-лист"
+                }
+            ],
+            [
+                {
+                    "action": {
+                        "type": "text",
+                        "payload": "{\"btn\": \"goal_buy\"}"
+                    },
+                    "label": "🔍 Подобрать квартиру"
+                },
+                {
+                    "action": {
+                        "type": "text",
+                        "payload": "{\"btn\": \"goal_sell\"}"
+                    },
+                    "label": "💰 Продать"
+                }
+            ],
+            [
+                {
+                    "action": {
+                        "type": "text",
+                        "payload": "{\"btn\": \"goal_invest\"}"
+                    },
+                    "label": "📊 Инвестиции"
+                },
+                {
+                    "action": {
+                        "type": "text",
+                        "payload": "{\"btn\": \"faq\"}"
+                    },
+                    "label": "💬 Задать вопрос"
+                }
+            ],
+            [
+                {
+                    "action": {
+                        "type": "text",
+                        "payload": "{\"btn\": \"referral\"}"
+                    },
+                    "label": "🎁 Пригласить друга"
+                }
+            ]
         ]
     }
 
