@@ -193,27 +193,27 @@ def mark_lead_sent(chat_id):
 
 def send_lead_to_admin(name, phone, chat_id, state):
     goal_code = state.get('goal', '')
-    goal_map = {'buy': ('Home', 'Buy'), 'sell': ('Money', 'Sell'), 'invest': ('Chart', 'Invest')}
-    emoji, goal_text = goal_map.get(goal_code, ("?", "Unknown"))
+    goal_map = {'buy': ('🏠', 'Покупка'), 'sell': ('💰', 'Продажа'), 'invest': ('📊', 'Инвестиции')}
+    emoji, goal_text = goal_map.get(goal_code, ('❓', 'Неизвестно'))
     
     lines = [
-        f"NEW LEAD | {emoji} {goal_text}",
-        "-" * 30,
-        f"Name: {name}",
-        f"Phone: {phone}",
-        f"VK ID: {chat_id}"
+        f"🔥 НОВЫЙ ЛИД | {emoji} {goal_text}",
+        "━━━━━━━━━━━━━━",
+        f"👤 Имя: {name}",
+        f"📞 Телефон: {phone}",
+        f"🆔 VK: {chat_id}"
     ]
     
     if goal_code == "buy":
-        if state.get('budget'): lines.append(f"Budget: {state['budget']}")
-        if state.get('deadline'): lines.append(f"Deadline: {state['deadline']}")
+        if state.get('budget'): lines.append(f"💰 Бюджет: {state['budget']}")
+        if state.get('deadline'): lines.append(f"⏰ Срок: {state['deadline']}")
     elif goal_code == "sell":
-        if state.get('prop_type'): lines.append(f"Type: {state['prop_type']}")
-        if state.get('district'): lines.append(f"District: {state['district']}")
+        if state.get('prop_type'): lines.append(f"🏠 Тип: {state['prop_type']}")
+        if state.get('district'): lines.append(f"📍 Район: {state['district']}")
     elif goal_code == "invest":
-        if state.get('invest_budget'): lines.append(f"Budget: {state['invest_budget']}")
+        if state.get('invest_budget'): lines.append(f"💵 Бюджет: {state['invest_budget']}")
     
-    lines.append("-" * 30)
+    lines.append("━━━━━━━━━━━━━━")
     
     if VK_ADMIN_ID:
         vk_send_message(VK_ADMIN_ID, "\n".join(lines))
@@ -223,18 +223,18 @@ def send_lead_to_admin(name, phone, chat_id, state):
 # ==================== HANDLERS ====================
 
 def handle_start(user_id, name):
-    text = f"""Hello, {name}! I am Tula Key assistant.
+    text = f"""🔑 Привет, {name}! Я — помощник «Тульского ключа»
 
-I help find apartments in Tula without stress.
+Помогаю найти квартиру в Туле без стресса 🏠
 
-Gift: Checklist "7 mistakes when buying"
-Download: {CHECKLIST_URL}
+🎁 Подарок: чек-лист «7 ошибок при покупке»
+📥 Скачать: {CHECKLIST_URL}
 
-Commands:
-- buy - find apartment
-- sell - sell property
-- invest - investments
-- help - FAQ
+📝 Напишите команду:
+• купить — подобрать квартиру
+• продать — продать недвижимость
+• инвест — инвестиции
+• помощь — частые вопросы
 """
     vk_send_message(user_id, text)
 
@@ -246,25 +246,25 @@ def handle_message(user_id, name, text):
     
     if cmd == "купить":
         save_user_state(user_id, name, '', {'goal': 'buy'})
-        vk_send_message(user_id, f"{name}, got it! 1. What is your budget? (e.g., 3000000)")
+        vk_send_message(user_id, f"{name}, понял! 🔑 1️⃣ Ваш бюджет? (напишите цифрами, например: 3000000)")
         return
     
     if cmd == "продать":
         save_user_state(user_id, name, '', {'goal': 'sell'})
-        vk_send_message(user_id, f"{name}, I will help sell property in Tula. 1. Property type? (apartment/house/room)")
+        vk_send_message(user_id, f"{name}, помогу продать недвижимость в Туле 🏡\n\n1️⃣ Тип объекта? (квартира/дом/комната)")
         return
     
     if cmd == "инвест":
         save_user_state(user_id, name, '', {'goal': 'invest'})
-        vk_send_message(user_id, "Investments: enter your budget (e.g., 2000000)")
+        vk_send_message(user_id, "📊 Инвестиции: напишите желаемый бюджет (например: 2000000)")
         return
     
     if cmd == "помощь":
-        vk_send_message(user_id, """FAQ:
+        vk_send_message(user_id, """💬 Частые вопросы:
 
-Commission: 2-3%, after deal
-Mortgage: Yes, all banks
-Verification: Legal check + report""")
+❓ Комиссия? → 2-3%, после сделки
+❓ Ипотека? → Да, со всеми банками
+❓ Проверка? → Юридическая чистота + отчёт""")
         return
     
     if cmd in ["начать", "старт", "/start", "start"]:
@@ -286,13 +286,13 @@ Verification: Legal check + report""")
             send_lead_to_admin(name, phone, user_id, state)
             mark_lead_sent(user_id)
         elif VK_ADMIN_ID:
-            vk_send_message(VK_ADMIN_ID, f"CONTACT!\nName: {name}\nPhone: {phone}\nVK: {user_id}")
+            vk_send_message(VK_ADMIN_ID, f"📞 КОНТАКТ!\n━━━━━━━━━━━━━━\n👤 {name}\n📞 {phone}\n🆔 VK: {user_id}")
         
-        vk_send_message(user_id, f"Thank you, {name}!\n\nPhone: {phone}\nI will contact within 2 hours!\n\nGroup: {VK_GROUP_LINK}")
+        vk_send_message(user_id, f"✅ Спасибо, {name}! 🙏\n\nТелефон: {phone}\nСвяжусь в течение 2 часов!\n\n📢 Наша группа: {VK_GROUP_LINK}")
         logger.info(f"Phone from {user_id}: {phone}")
         return
     
-    vk_send_message(user_id, f"{name}, enter command:\n\n- купить\n- продать\n- инвест\n- помощь\n\nOr enter your phone:")
+    vk_send_message(user_id, f"👋 {name}, напишите команду:\n\n• купить\n• продать\n• инвест\n• помощь\n\nИли напишите ваш телефон для связи:")
 
 
 # ==================== WEBHOOK ====================
@@ -313,7 +313,7 @@ def vk_webhook():
         if event_type == "message_new":
             message = obj.get("message", {})
             user_id = message.get("from_id")
-            name = message.get("from_name", "User")
+            name = message.get("from_name", "Пользователь")
             text = message.get("text", "")
             
             logger.info(f"Message: user_id={user_id}, text='{text}'")
