@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/vk_webhook.py"
+      "src": "api/vk_webhook.py",
       "use": "@vercel/python"
     }
   ],
@@ -13,7 +13,7 @@
     },
     {
       "src": "/vk_callback",
-      "dest": "vk_webhook.py"
+      "dest": "api/vk_webhook.py"
     }
   ]
 }
