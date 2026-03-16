@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Tula Key Bot - VKontakte
+# Tula Key Bot - VKontakte (FIXED v3)
 
 import os
 import json
@@ -46,6 +46,22 @@ def vk_api_call(method, params):
     except Exception as e:
         logger.error(f"VK API exception: {e}")
         return None
+
+
+def vk_get_user_name(user_id):
+    """Получаем имя пользователя из VK API"""
+    try:
+        params = {
+            "user_ids": user_id,
+            "fields": "first_name"
+        }
+        result = vk_api_call("users.get", params)
+        if result and len(result) > 0:
+            return result[0].get("first_name", "Пользователь")
+        return "Пользователь"
+    except Exception as e:
+        logger.error(f"Failed to get user name: {e}")
+        return "Пользователь"
 
 
 def vk_send_message(user_id, text):
@@ -135,6 +151,8 @@ def save_user_state(chat_id, name, username, data):
         return True
     except Exception as e:
         logger.error(f"Save error: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return False
 
 
@@ -240,25 +258,29 @@ def handle_start(user_id, name):
 
 
 def handle_message(user_id, name, text):
-    logger.info(f"Message: text='{text}'")
+    logger.info(f"Message: user_id={user_id}, name={name}, text='{text}'")
     
     cmd = text.strip().lower()
     
+    # ✅ Команда: купить
     if cmd == "купить":
         save_user_state(user_id, name, '', {'goal': 'buy'})
-        vk_send_message(user_id, f"{name}, понял! 🔑 1️⃣ Ваш бюджет? (напишите цифрами, например: 3000000)")
+        vk_send_message(user_id, f"{name}, понял! 🔑 1️⃣ Ваш бюджет? (напишите цифрами, например: 3000000 или 5 млн)")
         return
     
+    # ✅ Команда: продать
     if cmd == "продать":
         save_user_state(user_id, name, '', {'goal': 'sell'})
-        vk_send_message(user_id, f"{name}, помогу продать недвижимость в Туле 🏡\n\n1️⃣ Тип объекта? (квартира/дом/комната)")
+        vk_send_message(user_id, f"{name}, помогу продать недвижимость в Туле 🏡\n\n1️⃣ Тип объекта? (напишите: квартира, дом, комната)")
         return
     
+    # ✅ Команда: инвест
     if cmd == "инвест":
         save_user_state(user_id, name, '', {'goal': 'invest'})
         vk_send_message(user_id, "📊 Инвестиции: напишите желаемый бюджет (например: 2000000)")
         return
     
+    # ✅ Команда: помощь
     if cmd == "помощь":
         vk_send_message(user_id, """💬 Частые вопросы:
 
@@ -267,31 +289,124 @@ def handle_message(user_id, name, text):
 ❓ Проверка? → Юридическая чистота + отчёт""")
         return
     
+    # ✅ Команда: начать / старт
     if cmd in ["начать", "старт", "/start", "start"]:
         handle_start(user_id, name)
         return
     
+    # ✅ ПРОВЕРКА: Если пользователь в процессе покупки — проверяем на бюджет (ЛЮБЫЕ ЦИФРЫ!)
+    state = get_user_state(user_id)
+    if state and state.get('goal') == 'buy' and not state.get('budget'):
+        # Извлекаем все цифры из текста
+        digits = ''.join(c for c in text if c.isdigit())
+        if len(digits) >= 4:  # Минимум 4 цифры (например 1000)
+            budget = digits
+            save_user_state(user_id, name, '', {'budget': budget})
+            vk_send_message(user_id, f"✅ Бюджет: {budget}₽\n\n2️⃣ Когда планируете сделку?\n\n• срочно — в течение недели\n• месяц — 1-3 месяца\n• смотрю — просто присматриваюсь")
+            return
+    
+    # ✅ ПРОВЕРКА: Если бюджет уже указан — проверяем на срок
+    if state and state.get('goal') == 'buy' and state.get('budget') and not state.get('deadline'):
+        deadline_map = {
+            'срочно': '🔥 Срочно',
+            'неделю': '🔥 Срочно',
+            'месяц': '📅 1-3 месяца',
+            '3 месяца': '📅 1-3 месяца',
+            'смотрю': '👀 Просто присматриваюсь',
+            'присматриваюсь': '👀 Просто присматриваюсь'
+        }
+        deadline_text = None
+        for key, value in deadline_map.items():
+            if key in cmd:
+                deadline_text = value
+                break
+        
+        if deadline_text:
+            save_user_state(user_id, name, '', {'deadline': deadline_text})
+            vk_send_message(user_id, "🔥 Вижу, вы ищете серьёзно!\n\n📞 Напишите ваш номер телефона для связи:\n\n+7 999 123-45-67\n8-999-123-45-67\n9991234567")
+            return
+    
+    # ✅ ПРОВЕРКА: Если пользователь в процессе продажи
+    if state and state.get('goal') == 'sell':
+        if not state.get('prop_type'):
+            prop_map = {'квартира': 'Квартира', 'дом': 'Дом', 'комната': 'Комната', 'гараж': 'Гараж', 'участок': 'Участок'}
+            prop_type = None
+            for key, value in prop_map.items():
+                if key in cmd:
+                    prop_type = value
+                    break
+            
+            if prop_type:
+                save_user_state(user_id, name, '', {'prop_type': prop_type})
+                vk_send_message(user_id, f"✅ Тип: {prop_type}\n\n2️⃣ Район Тулы?\n\n• центр — Центральный\n• заречье — Заречье\n• пролетарский — Пролетарский\n• любой — Любой район")
+                return
+        
+        if state.get('prop_type') and not state.get('district'):
+            district_map = {
+                'центр': 'Центральный',
+                'центральный': 'Центральный',
+                'заречье': 'Заречье',
+                'пролетарский': 'Пролетарский',
+                'привокзальный': 'Привокзальный',
+                'любой': 'Любой'
+            }
+            district_text = None
+            for key, value in district_map.items():
+                if key in cmd:
+                    district_text = value
+                    break
+            
+            if district_text:
+                save_user_state(user_id, name, '', {'district': district_text})
+                vk_send_message(user_id, "✅ Отлично! 🏡 Я подготовлю оценку.\n\n📞 Напишите ваш номер телефона:")
+                return
+    
+    # ✅ ПРОВЕРКА: Если пользователь в процессе инвестиций
+    if state and state.get('goal') == 'invest' and not state.get('invest_budget'):
+        digits = ''.join(c for c in text if c.isdigit())
+        if len(digits) >= 4:
+            invest_budget = digits
+            save_user_state(user_id, name, '', {'invest_budget': invest_budget})
+            vk_send_message(user_id, f"📈 Бюджет: {invest_budget}₽\n\n💬 Хотите обсудить детали? Напишите ваш номер телефона 👇")
+            return
+    
+    # ✅ ПРОВЕРКА ТЕЛЕФОНА — ЛЮБОЙ ФОРМАТ!
     cleaned = ''.join(c for c in text if c.isdigit() or c == '+')
+    
+    # Разные форматы телефона
     if len(cleaned) >= 10:
         phone = cleaned
-        if phone.startswith('8') and len(phone) == 11:
+        
+        # Формат: +7XXXXXXXXXX
+        if phone.startswith('+7') and len(phone) == 12:
+            pass  # Уже правильный формат
+        # Формат: 8XXXXXXXXXX
+        elif phone.startswith('8') and len(phone) == 11:
             phone = '+7' + phone[1:]
+        # Формат: 7XXXXXXXXXX
         elif phone.startswith('7') and len(phone) == 11:
             phone = '+' + phone
-        elif len(phone) == 10:
+        # Формат: XXXXXXXXXX (10 цифр без кода)
+        elif len(phone) == 10 and phone.isdigit():
             phone = '+7' + phone
+        # Формат: +7XXX-XXX-XX-XX (с дефисами)
+        elif phone.startswith('+7') and len(phone) > 12:
+            phone = '+7' + ''.join(c for c in phone[2:] if c.isdigit())
         
-        state = get_user_state(user_id)
-        if state and state.get('goal'):
-            send_lead_to_admin(name, phone, user_id, state)
-            mark_lead_sent(user_id)
-        elif VK_ADMIN_ID:
-            vk_send_message(VK_ADMIN_ID, f"📞 КОНТАКТ!\n━━━━━━━━━━━━━━\n👤 {name}\n📞 {phone}\n🆔 VK: {user_id}")
-        
-        vk_send_message(user_id, f"✅ Спасибо, {name}! 🙏\n\nТелефон: {phone}\nСвяжусь в течение 2 часов!\n\n📢 Наша группа: {VK_GROUP_LINK}")
-        logger.info(f"Phone from {user_id}: {phone}")
-        return
+        # Проверяем что получилось минимум 11 символов (+7XXXXXXXXXX)
+        if len(phone) >= 11 and phone.startswith('+'):
+            state = get_user_state(user_id)
+            if state and state.get('goal'):
+                send_lead_to_admin(name, phone, user_id, state)
+                mark_lead_sent(user_id)
+            elif VK_ADMIN_ID:
+                vk_send_message(VK_ADMIN_ID, f"📞 КОНТАКТ!\n━━━━━━━━━━━━━━\n👤 {name}\n📞 {phone}\n🆔 VK: {user_id}")
+            
+            vk_send_message(user_id, f"✅ Спасибо, {name}! 🙏\n\nТелефон: {phone}\nСвяжусь в течение 2 часов!\n\n📢 Наша группа: {VK_GROUP_LINK}")
+            logger.info(f"Phone from {user_id}: {phone}")
+            return
     
+    # ❌ Неизвестная команда
     vk_send_message(user_id, f"👋 {name}, напишите команду:\n\n• купить\n• продать\n• инвест\n• помощь\n\nИли напишите ваш телефон для связи:")
 
 
@@ -313,10 +428,16 @@ def vk_webhook():
         if event_type == "message_new":
             message = obj.get("message", {})
             user_id = message.get("from_id")
-            name = message.get("from_name", "Пользователь")
+            # ✅ Пытаемся получить имя из сообщения
+            name = message.get("from_name", "")
             text = message.get("text", "")
             
-            logger.info(f"Message: user_id={user_id}, text='{text}'")
+            # ✅ Если имени нет — запрашиваем из VK API
+            if not name or name == "":
+                logger.info(f"Name not in message, fetching from VK API for user {user_id}")
+                name = vk_get_user_name(user_id)
+            
+            logger.info(f"Message: user_id={user_id}, name={name}, text='{text}'")
             
             if not user_id:
                 logger.error("user_id is None!")
@@ -335,7 +456,7 @@ def vk_webhook():
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    return "VK Bot OK", 200
+    return "VK Bot OK v3", 200
 
 
 if __name__ == '__main__':
