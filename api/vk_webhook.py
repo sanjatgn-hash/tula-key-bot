@@ -57,7 +57,7 @@ def vk_send_message(user_id, text, keyboard=None):
         "random_id": 0
     }
     if keyboard:
-        # ✅ Убрали ensure_ascii=False
+        # ✅ Простой json.dumps без ensure_ascii
         params["keyboard"] = json.dumps(keyboard)
     
     result = vk_api_call("messages.send", params)
@@ -70,7 +70,7 @@ def vk_send_message(user_id, text, keyboard=None):
 # ==================== VK КЛАВИАТУРЫ (ПРАВИЛЬНЫЙ ФОРМАТ) ====================
 
 def main_menu_kb():
-    """Главное меню — формат VK с callback"""
+    """Главное меню — правильный payload для VK callback"""
     return {
         "inline": True,
         "buttons": [
@@ -78,7 +78,7 @@ def main_menu_kb():
                 {
                     "action": {
                         "type": "callback",
-                        "payload": "test_btn"
+                        "payload": "{\"btn\":\"test\"}"  # ← JSON строка в кавычках!
                     },
                     "label": "Test"
                 }
