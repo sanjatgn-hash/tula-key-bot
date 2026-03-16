@@ -419,7 +419,7 @@ def handle_message(user_id, name, text):
 
 # ==================== WEBHOOK ====================
 
-@app.route('/vk_callback', methods=['POST'])
+@app.route('/vk_callback', methods=['GET', 'POST'])
 def vk_webhook():
     try:
         data = request.get_json(force=True)
