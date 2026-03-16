@@ -73,7 +73,10 @@ def get_sheet():
             logger.error("❌ Google Sheets credentials not set")
             return None
         
-        scopes = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        scopes = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/drive"
+        ]
         creds_info = json.loads(GOOGLE_CREDS_JSON)
         creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
         client = gspread.authorize(creds)
