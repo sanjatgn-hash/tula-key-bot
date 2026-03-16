@@ -57,7 +57,8 @@ def vk_send_message(user_id, text, keyboard=None):
         "random_id": 0
     }
     if keyboard:
-        params["keyboard"] = json.dumps(keyboard, ensure_ascii=False)
+        # ✅ Убрали ensure_ascii=False
+        params["keyboard"] = json.dumps(keyboard)
     
     result = vk_api_call("messages.send", params)
     if result:
@@ -65,7 +66,6 @@ def vk_send_message(user_id, text, keyboard=None):
     else:
         logger.error(f"❌ Failed to send message to {user_id}")
     return result
-
 
 # ==================== VK КЛАВИАТУРЫ (ПРАВИЛЬНЫЙ ФОРМАТ) ====================
 
