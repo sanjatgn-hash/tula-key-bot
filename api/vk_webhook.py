@@ -1,23 +1,33 @@
 # api/vk_webhook.py
-# Tula Key Bot — CALLBACK BUTTONS (WORKING)
+# Tula Key Bot — WORKING KEYBOARD FORMAT
 
 import os
 import json
 import logging
 import requests
 from flask import Flask, request
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# ==================== SETTINGS ====================
 VK_TOKEN = os.getenv("VK_TOKEN", "")
 VK_GROUP_ID = os.getenv("VK_GROUP_ID", "")
 VK_CONFIRMATION_TOKEN = os.getenv("VK_CONFIRMATION_TOKEN", "")
+VK_ADMIN_ID = os.getenv("VK_ADMIN_ID", "")
+CHECKLIST_URL = os.getenv("CHECKLIST_URL", "")
+VK_GROUP_LINK = os.getenv("VK_GROUP_LINK", "https://vk.com/tula_key")
+GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "")
+GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON", "")
 
 logger.info(f"VK_TOKEN: {'OK' if VK_TOKEN else 'MISSING'}")
+logger.info(f"VK_GROUP_ID: {'OK' if VK_GROUP_ID else 'MISSING'}")
 
+
+# ==================== VK API ====================
 
 def vk_api_call(method, params):
     params.update({"access_token": VK_TOKEN, "v": "5.199", "group_id": VK_GROUP_ID})
@@ -33,70 +43,354 @@ def vk_api_call(method, params):
         return None
 
 
+def get_random_id():
+    import random
+    return random.randint(0, 2000000000)
+
+
+# ==================== KEYBOARD FUNCTIONS (FROM INTERNET) ====================
+
+def get_button(label, payload='', color='primary'):
+    """Создаёт кнопку в формате VK"""
+    return {
+        'action': {
+            'type': 'text',
+            'payload': json.dumps(payload, ensure_ascii=False),
+            'label': label
+        },
+        'color': color
+    }
+
+
+def create_keyboard(one_time=False, buttons=None):
+    """Создаёт клавиатуру в формате VK"""
+    if buttons is None:
+        buttons = []
+    
+    keyboard = {
+        'one_time': one_time,
+        'buttons': buttons
+    }
+    
+    # ✅ Правильная кодировка для VK
+    keyboard_json = json.dumps(keyboard, ensure_ascii=False)
+    return keyboard_json
+
+
+def main_menu_keyboard():
+    """Главное меню"""
+    buttons = [
+        [get_button('🔍 Подобрать квартиру', {'cmd': 'buy'}, 'primary')],
+        [get_button('💰 Продать', {'cmd': 'sell'}, 'primary')],
+        [get_button('📊 Инвестиции', {'cmd': 'invest'}, 'primary')],
+        [get_button('💬 Помощь', {'cmd': 'help'}, 'secondary')]
+    ]
+    return create_keyboard(one_time=False, buttons=buttons)
+
+
+def budget_keyboard():
+    """Выбор бюджета"""
+    buttons = [
+        [get_button('до 3 млн', {'cmd': 'budget', 'val': 'до 3 млн'}, 'primary')],
+        [get_button('3-5 млн', {'cmd': 'budget', 'val': '3-5 млн'}, 'primary')],
+        [get_button('5+ млн', {'cmd': 'budget', 'val': '5+ млн'}, 'primary')],
+        [get_button('Нужна помощь', {'cmd': 'budget', 'val': 'help'}, 'secondary')]
+    ]
+    return create_keyboard(one_time=False, buttons=buttons)
+
+
+def deadline_keyboard():
+    """Выбор срока"""
+    buttons = [
+        [get_button('🔥 Срочно', {'cmd': 'deadline', 'val': 'Срочно'}, 'primary')],
+        [get_button('📅 1-3 месяца', {'cmd': 'deadline', 'val': '1-3 месяца'}, 'primary')],
+        [get_button('👀 Присматриваюсь', {'cmd': 'deadline', 'val': 'Присматриваюсь'}, 'secondary')]
+    ]
+    return create_keyboard(one_time=False, buttons=buttons)
+
+
+def property_type_keyboard():
+    """Тип недвижимости"""
+    buttons = [
+        [get_button('Квартира', {'cmd': 'prop_type', 'val': 'Квартира'}, 'primary')],
+        [get_button('Дом', {'cmd': 'prop_type', 'val': 'Дом'}, 'primary')],
+        [get_button('Комната', {'cmd': 'prop_type', 'val': 'Комната'}, 'primary')],
+        [get_button('Другое', {'cmd': 'prop_type', 'val': 'Другое'}, 'secondary')]
+    ]
+    return create_keyboard(one_time=False, buttons=buttons)
+
+
+def district_keyboard():
+    """Район"""
+    buttons = [
+        [get_button('Центральный', {'cmd': 'district', 'val': 'Центральный'}, 'primary')],
+        [get_button('Заречье', {'cmd': 'district', 'val': 'Заречье'}, 'primary')],
+        [get_button('Пролетарский', {'cmd': 'district', 'val': 'Пролетарский'}, 'primary')],
+        [get_button('Любой', {'cmd': 'district', 'val': 'Любой'}, 'secondary')]
+    ]
+    return create_keyboard(one_time=False, buttons=buttons)
+
+
+def invest_budget_keyboard():
+    """Бюджет инвестиций"""
+    buttons = [
+        [get_button('до 2 млн', {'cmd': 'invest_budget', 'val': 'до 2 млн'}, 'primary')],
+        [get_button('2-5 млн', {'cmd': 'invest_budget', 'val': '2-5 млн'}, 'primary')],
+        [get_button('5+ млн', {'cmd': 'invest_budget', 'val': '5+ млн'}, 'secondary')]
+    ]
+    return create_keyboard(one_time=False, buttons=buttons)
+
+
+def back_menu_keyboard():
+    """Назад в меню"""
+    buttons = [
+        [get_button('🔙 В главное меню', {'cmd': 'menu'}, 'secondary')]
+    ]
+    return create_keyboard(one_time=True, buttons=buttons)
+
+
+# ==================== SEND MESSAGE ====================
+
 def vk_send_message(user_id, text, keyboard=None):
-    params = {"user_id": user_id, "message": text, "random_id": 0}
+    """Отправка сообщения с клавиатурой"""
+    params = {
+        "user_id": user_id,
+        "message": text,
+        "random_id": get_random_id()
+    }
+    
     if keyboard:
-        params["keyboard"] = json.dumps(keyboard)
+        params["keyboard"] = keyboard
+        logger.info(f"Sending keyboard: {keyboard[:200]}")
+    
     result = vk_api_call("messages.send", params)
-    logger.info(f"Sent: {user_id}" if result else f"Failed: {user_id}")
+    logger.info(f"Sent to {user_id}" if result else f"Failed {user_id}")
     return result
 
 
-def send_callback_answer(event_id, user_id, event_data):
-    """ОБЯЗАТЕЛЬНО для callback кнопок!"""
-    params = {
-        "event_id": event_id,
-        "user_id": user_id,
-        "event_data": json.dumps(event_data)
-    }
-    return vk_api_call("messages.sendMessageEventAnswer", params)
+# ==================== HELPER FUNCTIONS ====================
+
+def extract_budget(text):
+    text = text.lower().strip()
+    digits = ''.join(c for c in text if c.isdigit())
+    if not digits:
+        return None
+    number = int(digits)
+    if number >= 100000:
+        return str(number)
+    if 'млн' in text:
+        return str(number * 1000000)
+    if 'тыс' in text:
+        return str(number * 1000)
+    return digits if number > 99 else None
 
 
-# ==================== CALLBACK KEYBOARD ====================
+def normalize_phone(text):
+    cleaned = ''.join(c for c in text if c.isdigit() or c == '+')
+    if len(cleaned) < 10:
+        return None, False
+    if cleaned.startswith('8') and len(cleaned) == 11:
+        return '+7' + cleaned[1:], True
+    if cleaned.startswith('7') and len(cleaned) == 11:
+        return '+' + cleaned, True
+    if len(cleaned) == 10:
+        return '+7' + cleaned, True
+    if cleaned.startswith('+7') and len(cleaned) == 12:
+        return cleaned, True
+    return None, False
 
-def test_kb():
-    """Callback клавиатура — ПРАВИЛЬНЫЙ ФОРМАТ"""
-    return {
-        "inline": True,
-        "buttons": [
-            [
-                {
-                    "action": {
-                        "type": "callback",
-                        "payload": json.dumps({"test": "1"})
-                    },
-                    "label": "Test"
-                }
-            ]
-        ]
-    }
+
+# ==================== GOOGLE SHEETS ====================
+
+def get_sheet():
+    try:
+        from google.oauth2.service_account import Credentials
+        import gspread
+        if not GOOGLE_CREDS_JSON or not GOOGLE_SHEET_ID:
+            return None
+        scopes = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = Credentials.from_service_account_info(json.loads(GOOGLE_CREDS_JSON), scopes=scopes)
+        client = gspread.authorize(creds)
+        sheet = client.open_by_key(GOOGLE_SHEET_ID).sheet1
+        if not sheet.row_values(1) or sheet.row_values(1)[0] != 'chat_id':
+            sheet.append_row(['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at', 'status'])
+        return sheet
+    except Exception as e:
+        logger.error(f"Google Sheets error: {e}")
+        return None
+
+
+def save_user_state(chat_id, name, data):
+    sheet = get_sheet()
+    if not sheet:
+        return False
+    try:
+        rows = sheet.get_all_values()
+        row_idx = None
+        existing_data = {}
+        for i, row in enumerate(rows[1:], 2):
+            if row and str(row[0]) == str(chat_id) and (len(row) > 11 and row[11] == 'new'):
+                row_idx = i
+                existing_data = {'goal': row[3], 'budget': row[4], 'deadline': row[5], 'prop_type': row[6], 'district': row[7], 'invest_budget': row[8]}
+                break
+        merged = {**existing_data, **data}
+        row_data = [str(chat_id), name or '', '', merged.get('goal',''), merged.get('budget',''), merged.get('deadline',''), merged.get('prop_type',''), merged.get('district',''), merged.get('invest_budget',''), merged.get('phone',''), datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'new']
+        if row_idx:
+            sheet.update(f'A{row_idx}:L{row_idx}', [row_data])
+        else:
+            sheet.append_row(row_data)
+        return True
+    except Exception as e:
+        logger.error(f"Save error: {e}")
+        return False
+
+
+def get_user_state(chat_id):
+    sheet = get_sheet()
+    if not sheet:
+        return None
+    try:
+        for row in sheet.get_all_values()[1:]:
+            if row and str(row[0]) == str(chat_id) and (len(row) > 11 and row[11] == 'new'):
+                return {'chat_id': row[0], 'name': row[1], 'goal': row[3], 'budget': row[4], 'deadline': row[5], 'prop_type': row[6], 'district': row[7], 'invest_budget': row[8], 'phone': row[9], 'status': row[11]}
+        return None
+    except:
+        return None
+
+
+def mark_lead_sent(chat_id):
+    sheet = get_sheet()
+    if not sheet:
+        return False
+    try:
+        rows = sheet.get_all_values()
+        for i, row in enumerate(rows[1:], 2):
+            if row and str(row[0]) == str(chat_id) and (len(row) > 11 and row[11] == 'new'):
+                sheet.update_cell(i, 12, 'sent')
+                sheet.update_cell(i, 11, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                return True
+        return False
+    except:
+        return False
+
+
+def send_lead_to_admin(name, phone, user_id, state):
+    goal = state.get('goal', '')
+    emoji = {'buy': '🏠', 'sell': '💰', 'invest': '📊'}.get(goal, '❓')
+    lines = [f"🔥 НОВЫЙ ЛИД | {emoji} {goal.upper()}", "━" * 30, f"👤 {name}", f"📞 {phone}", f"🆔 VK: {user_id}"]
+    if goal == 'buy' and state.get('budget'):
+        lines.append(f"💰 Бюджет: {state['budget']}")
+    if goal == 'sell' and state.get('prop_type'):
+        lines.append(f"🏠 Тип: {state['prop_type']}")
+    if VK_ADMIN_ID:
+        vk_send_message(VK_ADMIN_ID, "\n".join(lines))
 
 
 # ==================== HANDLERS ====================
 
 def handle_start(user_id, name):
-    vk_send_message(user_id, f"Hi {name}! Click button:", test_kb())
+    text = f"""🔑 Привет, {name}! Я — помощник «Тульского ключа»
 
+Помогаю найти квартиру в Туле без стресса 🏠
 
-def handle_callback(user_id, name, payload, event_id):
-    """Обработка нажатия callback кнопки"""
-    logger.info(f"Callback received: {payload}")
-    
-    # ✅ ОБЯЗАТЕЛЬНО: ответить VK что кнопка нажата
-    send_callback_answer(event_id, user_id, {
-        "type": "show_snackbar",
-        "text": "Button clicked!"
-    })
-    
-    # Отправить сообщение
-    vk_send_message(user_id, f"✅ Button works! Payload: {payload}", test_kb())
+🎁 Чек-лист: {CHECKLIST_URL or 'после консультации'}
+
+Выберите действие:"""
+    vk_send_message(user_id, text, main_menu_keyboard())
 
 
 def handle_message(user_id, name, text):
-    if text.lower() in ["start", "начать", "тест"]:
+    cmd = text.strip().lower()
+    state = get_user_state(user_id)
+    
+    logger.info(f"User: {name}, Command: {cmd}, State: {state.get('goal') if state else 'None'}")
+    
+    # ТЕЛЕФОН
+    if state and state.get('goal'):
+        phone, valid = normalize_phone(text)
+        if valid:
+            save_user_state(user_id, name, {'phone': phone})
+            send_lead_to_admin(name, phone, user_id, state)
+            mark_lead_sent(user_id)
+            vk_send_message(user_id, f"✅ Спасибо! Телефон: {phone}\nСвяжусь в течение 2 часов!", main_menu_keyboard())
+            return
+    
+    # КОМАНДЫ
+    if cmd in ["начать", "старт", "/start", "меню"]:
         handle_start(user_id, name)
         return
-    vk_send_message(user_id, f"Echo: {text}", test_kb())
+    
+    # BUY
+    if cmd == "купить" or (state and state.get('goal') == 'buy' and not state.get('budget')):
+        if not state or not state.get('goal'):
+            save_user_state(user_id, name, {'goal': 'buy'})
+        budget = extract_budget(text)
+        if budget:
+            save_user_state(user_id, name, {'budget': budget})
+            vk_send_message(user_id, f"✅ {budget}₽\n\n2️⃣ Срок?", deadline_keyboard())
+            return
+        elif cmd == "купить":
+            vk_send_message(user_id, f"{name}, 1️⃣ Ваш бюджет?", budget_keyboard())
+            return
+    
+    if state and state.get('goal') == 'buy' and state.get('budget') and not state.get('deadline'):
+        if 'срочно' in cmd:
+            save_user_state(user_id, name, {'deadline': 'Срочно'})
+            vk_send_message(user_id, "🔥 Принято!\n\n📞 Телефон:", back_menu_keyboard())
+            return
+        if 'месяц' in cmd:
+            save_user_state(user_id, name, {'deadline': '1-3 месяца'})
+            vk_send_message(user_id, "📅 Принято!\n\n📞 Телефон:", back_menu_keyboard())
+            return
+    
+    # SELL
+    if cmd == "продать" or (state and state.get('goal') == 'sell' and not state.get('prop_type')):
+        if not state or not state.get('goal'):
+            save_user_state(user_id, name, {'goal': 'sell'})
+        if cmd == "продать":
+            vk_send_message(user_id, f"{name}, 1️⃣ Тип объекта?", property_type_keyboard())
+            return
+        if 'квартира' in cmd:
+            save_user_state(user_id, name, {'prop_type': 'Квартира'})
+            vk_send_message(user_id, "✅ Квартира\n\n2️⃣ Район?", district_keyboard())
+            return
+        if 'дом' in cmd:
+            save_user_state(user_id, name, {'prop_type': 'Дом'})
+            vk_send_message(user_id, "✅ Дом\n\n2️⃣ Район?", district_keyboard())
+            return
+    
+    if state and state.get('goal') == 'sell' and state.get('prop_type') and not state.get('district'):
+        if 'центр' in cmd:
+            save_user_state(user_id, name, {'district': 'Центральный'})
+            vk_send_message(user_id, "✅ Центр\n\n📞 Телефон:", back_menu_keyboard())
+            return
+        if 'заречье' in cmd:
+            save_user_state(user_id, name, {'district': 'Заречье'})
+            vk_send_message(user_id, "✅ Заречье\n\n📞 Телефон:", back_menu_keyboard())
+            return
+    
+    # INVEST
+    if cmd == "инвест" or (state and state.get('goal') == 'invest' and not state.get('invest_budget')):
+        if not state or not state.get('goal'):
+            save_user_state(user_id, name, {'goal': 'invest'})
+        budget = extract_budget(text)
+        if budget:
+            save_user_state(user_id, name, {'invest_budget': budget})
+            vk_send_message(user_id, f"✅ {budget}₽\n\n📞 Телефон:", back_menu_keyboard())
+            return
+        elif cmd == "инвест":
+            vk_send_message(user_id, "📊 Ваш бюджет?", invest_budget_keyboard())
+            return
+    
+    # HELP
+    if cmd == "помощь":
+        vk_send_message(user_id, """💬 Частые вопросы:
+❓ Комиссия: 2-3%
+❓ Ипотека: да
+❓ Проверка: юридическая чистота""", main_menu_keyboard())
+        return
+    
+    vk_send_message(user_id, f"👋 {name}, выберите действие:", main_menu_keyboard())
 
 
 # ==================== WEBHOOK ====================
@@ -113,27 +407,14 @@ def vk_webhook():
         obj = data.get("object", {})
         event_type = data.get("type")
         
-        # ✅ СООБЩЕНИЕ (текст)
         if event_type == "message_new":
             msg = obj.get("message", {})
             user_id = msg.get("from_id")
-            name = msg.get("from_name", "User")
+            name = msg.get("from_name", "Пользователь")
             text = msg.get("text", "")
             logger.info(f"Message: {user_id}, {name}, '{text}'")
             if user_id:
                 handle_message(user_id, name, text)
-            return "ok", 200
-        
-        # ✅ НАЖАТИЕ КНОПКИ (callback)
-        if event_type == "message_event":
-            msg = obj.get("message", {})
-            user_id = msg.get("from_id") or obj.get("user_id")
-            name = msg.get("from_name", "User")
-            payload = json.loads(obj.get("payload", "{}"))
-            event_id = obj.get("event_id")
-            logger.info(f"Callback: {user_id}, payload={payload}, event_id={event_id}")
-            if user_id:
-                handle_callback(user_id, name, payload, event_id)
             return "ok", 200
         
         return "ok", 200
@@ -146,7 +427,7 @@ def vk_webhook():
 
 @app.route('/health')
 def health():
-    return "OK", 200
+    return "VK Bot OK", 200
 
 
 if __name__ == '__main__':
