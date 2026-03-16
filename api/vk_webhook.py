@@ -1,5 +1,5 @@
-# api/vk_bot.py
-# Tula Key Bot — VKontakte with Callback Buttons
+# api/vk_webhook.py
+# Tula Key Bot — VKontakte (TEXT ONLY - NO BUTTONS)
 
 import os
 import json
@@ -26,14 +26,11 @@ GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON", "")
 logger.info(f"VK_TOKEN: {'OK' if VK_TOKEN else 'MISSING'}")
 logger.info(f"VK_GROUP_ID: {'OK' if VK_GROUP_ID else 'MISSING'}")
 logger.info(f"VK_ADMIN_ID: {'OK' if VK_ADMIN_ID else 'MISSING'}")
-logger.info(f"CHECKLIST_URL: {'OK' if CHECKLIST_URL else 'MISSING'}")
-logger.info(f"GOOGLE_SHEET_ID: {'OK' if GOOGLE_SHEET_ID else 'MISSING'}")
 
 
 # ==================== HELPER FUNCTIONS ====================
 
 def extract_budget(text):
-    """Извлекает бюджет из текста: 5 млн → 5000000"""
     text = text.lower().strip()
     digits = ''.join(c for c in text if c.isdigit())
     if not digits:
@@ -51,7 +48,6 @@ def extract_budget(text):
 
 
 def normalize_phone(text):
-    """Нормализует телефон: возвращает (phone, is_valid)"""
     cleaned = ''.join(c for c in text if c.isdigit() or c == '+')
     if len(cleaned) < 10:
         return None, False
@@ -72,7 +68,6 @@ def normalize_phone(text):
 
 
 def vk_api_call(method, params):
-    """Вызов VK API"""
     params.update({
         "access_token": VK_TOKEN,
         "v": "5.199",
@@ -91,7 +86,6 @@ def vk_api_call(method, params):
 
 
 def vk_get_user_name(user_id):
-    """Получаем имя пользователя из VK API"""
     try:
         params = {"user_ids": user_id, "fields": "first_name"}
         result = vk_api_call("users.get", params)
@@ -103,176 +97,18 @@ def vk_get_user_name(user_id):
         return "Пользователь"
 
 
-def vk_send_message(user_id, text, keyboard=None):
-    """Отправка сообщения с опциональной клавиатурой"""
+def vk_send_message(user_id, text):
     params = {
         "user_id": user_id,
         "message": text,
         "random_id": 0
     }
-    if keyboard:
-        params["keyboard"] = json.dumps(keyboard, ensure_ascii=False)
     result = vk_api_call("messages.send", params)
     if result:
         logger.info(f"Message sent to {user_id}")
     else:
         logger.error(f"Failed to send message to {user_id}")
     return result
-
-
-def vk_edit_message(user_id, conversation_message_id, text, keyboard=None):
-    """Редактирование сообщения (для callback кнопок)"""
-    params = {
-        "peer_id": user_id,
-        "conversation_message_id": conversation_message_id,
-        "message": text,
-        "keep_forward_messages": 0
-    }
-    if keyboard:
-        params["keyboard"] = json.dumps(keyboard, ensure_ascii=False)
-    result = vk_api_call("messages.edit", params)
-    if result:
-        logger.info(f"Message edited for {user_id}")
-    else:
-        logger.error(f"Failed to edit message for {user_id}")
-    return result
-
-
-def send_callback_answer(event_id, user_id, event_data):
-    """Ответ на нажатие callback-кнопки"""
-    params = {
-        "event_id": event_id,
-        "user_id": user_id,
-        "event_data": json.dumps(event_data)
-    }
-    return vk_api_call("messages.sendMessageEventAnswer", params)
-
-
-# ==================== KEYBOARDS (VK CALLBACK FORMAT) ====================
-
-def make_callback_btn(label, cmd, **extra):
-    """Создаёт callback-кнопку в формате VK"""
-    payload = {"cmd": cmd, **extra}
-    return {
-        "action": {
-            "type": "callback",
-            "payload": json.dumps(payload)
-        },
-        "label": label
-    }
-
-
-def make_link_btn(label, url):
-    """Создаёт кнопку-ссылку"""
-    return {
-        "action": {
-            "type": "open_link",
-            "link": url
-        },
-        "label": label
-    }
-
-
-def main_menu_kb():
-    """Главное меню"""
-    return {
-        "inline": True,
-        "buttons": [
-            [make_callback_btn("📥 Получить чек-лист", "get_checklist")],
-            [
-                make_callback_btn("🔍 Подобрать квартиру", "goal_buy"),
-                make_callback_btn("💰 Продать", "goal_sell")
-            ],
-            [
-                make_callback_btn("📊 Инвестиции", "goal_invest"),
-                make_callback_btn("💬 Задать вопрос", "faq")
-            ],
-            [make_callback_btn("🎁 Пригласить друга", "referral")]
-        ]
-    }
-
-
-def budget_kb():
-    """Выбор бюджета"""
-    return {
-        "inline": True,
-        "buttons": [
-            [make_callback_btn("до 3 млн", "budget", value="до 3 млн")],
-            [make_callback_btn("3–5 млн", "budget", value="3–5 млн")],
-            [make_callback_btn("5+ млн", "budget", value="5+ млн")],
-            [make_callback_btn("Нужна помощь", "budget", value="Нужна помощь")]
-        ]
-    }
-
-
-def deadline_kb():
-    """Выбор срока"""
-    return {
-        "inline": True,
-        "buttons": [
-            [make_callback_btn("🔥 Срочно", "deadline", value="🔥 Срочно")],
-            [make_callback_btn("📅 1-3 месяца", "deadline", value="📅 1-3 месяца")],
-            [make_callback_btn("👀 Просто смотрю", "deadline", value="👀 Просто присматриваюсь")]
-        ]
-    }
-
-
-def property_type_kb():
-    """Тип недвижимости"""
-    return {
-        "inline": True,
-        "buttons": [
-            [make_callback_btn("Квартира", "prop_type", value="Квартира")],
-            [make_callback_btn("Дом", "prop_type", value="Дом")],
-            [make_callback_btn("Комната", "prop_type", value="Комната")],
-            [make_callback_btn("Другое", "prop_type", value="Другое")]
-        ]
-    }
-
-
-def district_kb():
-    """Район"""
-    return {
-        "inline": True,
-        "buttons": [
-            [make_callback_btn("Центральный", "district", value="Центральный")],
-            [make_callback_btn("Заречье", "district", value="Заречье")],
-            [make_callback_btn("Пролетарский", "district", value="Пролетарский")],
-            [make_callback_btn("Любой", "district", value="Любой")]
-        ]
-    }
-
-
-def invest_budget_kb():
-    """Бюджет инвестиций"""
-    return {
-        "inline": True,
-        "buttons": [
-            [make_callback_btn("до 2 млн", "invest_budget", value="до 2 млн")],
-            [make_callback_btn("2–5 млн", "invest_budget", value="2–5 млн")],
-            [make_callback_btn("5+ млн", "invest_budget", value="5+ млн")]
-        ]
-    }
-
-
-def phone_request_kb():
-    """Кнопка для отправки телефона"""
-    return {
-        "inline": True,
-        "buttons": [
-            [make_link_btn("📞 Написать в ЛС", VK_GROUP_LINK)]
-        ]
-    }
-
-
-def channel_kb():
-    """Подписка на группу"""
-    return {
-        "inline": True,
-        "buttons": [
-            [make_link_btn("📢 Подписаться на группу", VK_GROUP_LINK)]
-        ]
-    }
 
 
 # ==================== GOOGLE SHEETS ====================
@@ -333,6 +169,8 @@ def save_user_state(chat_id, name, username, data):
         return True
     except Exception as e:
         logger.error(f"Save error: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return False
 
 
@@ -404,7 +242,7 @@ def send_lead_to_admin(name, phone, chat_id, state):
 
 # ==================== HANDLERS ====================
 
-def handle_start(user_id, name, conversation_message_id=None):
+def handle_start(user_id, name):
     checklist = f"📥 Скачать: {CHECKLIST_URL}" if CHECKLIST_URL else "📥 Чек-лист после консультации"
     text = f"""🔑 Привет, {name}! Я — помощник «Тульского ключа»
 
@@ -413,108 +251,13 @@ def handle_start(user_id, name, conversation_message_id=None):
 🎁 Подарок: чек-лист «7 ошибок при покупке»
 {checklist}
 
-📝 Выберите действие:"""
-    if conversation_message_id:
-        vk_edit_message(user_id, conversation_message_id, text, main_menu_kb())
-    else:
-        vk_send_message(user_id, text, main_menu_kb())
-
-
-def handle_callback(user_id, name, payload, conversation_message_id=None):
-    cmd = payload.get("cmd")
-    value = payload.get("value")
-    logger.info(f"Callback: cmd={cmd}, value={value}")
-    
-    state = get_user_state(user_id)
-    
-    # ✅ ПОКУПКА
-    if cmd == "goal_buy" or (state and state.get('goal') == 'buy' and cmd == "budget"):
-        if cmd == "goal_buy":
-            save_user_state(user_id, name, '', {'goal': 'buy'})
-            text = f"{name}, понял! 🔑 1️⃣ Ваш бюджет?"
-            vk_send_message(user_id, text, budget_kb())
-            send_callback_answer(payload.get("event_id"), user_id, {"type": "show_snackbar", "text": "Выберите бюджет 👇"})
-            return
-        if cmd == "budget" and value:
-            save_user_state(user_id, name, '', {'budget': value})
-            text = f"✅ Бюджет: {value}\n\n2️⃣ Когда планируете сделку?"
-            vk_send_message(user_id, text, deadline_kb())
-            send_callback_answer(payload.get("event_id"), user_id, {"type": "show_snackbar", "text": "Выберите срок 👇"})
-            return
-    
-    # СРОК ПОКУПКИ
-    if state and state.get('goal') == 'buy' and state.get('budget') and cmd == "deadline" and value:
-        save_user_state(user_id, name, '', {'deadline': value})
-        text = "🔥 Отлично!\n\n📞 Напишите ваш номер телефона:"
-        vk_send_message(user_id, text, phone_request_kb())
-        send_callback_answer(payload.get("event_id"), user_id, {"type": "show_snackbar", "text": "Ждём ваш телефон 👇"})
-        return
-    
-    # ✅ ПРОДАЖА
-    if cmd == "goal_sell" or (state and state.get('goal') == 'sell' and cmd == "prop_type"):
-        if cmd == "goal_sell":
-            save_user_state(user_id, name, '', {'goal': 'sell'})
-            text = f"{name}, помогу продать недвижимость в Туле 🏡\n\n1️⃣ Тип объекта?"
-            vk_send_message(user_id, text, property_type_kb())
-            send_callback_answer(payload.get("event_id"), user_id, {"type": "show_snackbar", "text": "Выберите тип 👇"})
-            return
-        if cmd == "prop_type" and value:
-            save_user_state(user_id, name, '', {'prop_type': value})
-            text = f"✅ Тип: {value}\n\n2️⃣ Район Тулы?"
-            vk_send_message(user_id, text, district_kb())
-            send_callback_answer(payload.get("event_id"), user_id, {"type": "show_snackbar", "text": "Выберите район 👇"})
-            return
-    
-    # РАЙОН ПРОДАЖИ
-    if state and state.get('goal') == 'sell' and state.get('prop_type') and cmd == "district" and value:
-        save_user_state(user_id, name, '', {'district': value})
-        text = "✅ Отлично! 🏡 Я подготовлю оценку.\n\n📞 Напишите ваш номер телефона:"
-        vk_send_message(user_id, text, phone_request_kb())
-        send_callback_answer(payload.get("event_id"), user_id, {"type": "show_snackbar", "text": "Ждём ваш телефон 👇"})
-        return
-    
-    # ✅ ИНВЕСТИЦИИ
-    if cmd == "goal_invest" or (state and state.get('goal') == 'invest' and cmd == "invest_budget"):
-        if cmd == "goal_invest":
-            save_user_state(user_id, name, '', {'goal': 'invest'})
-            text = "📊 Инвестиции: выберите бюджет"
-            vk_send_message(user_id, text, invest_budget_kb())
-            send_callback_answer(payload.get("event_id"), user_id, {"type": "show_snackbar", "text": "Выберите бюджет 👇"})
-            return
-        if cmd == "invest_budget" and value:
-            save_user_state(user_id, name, '', {'invest_budget': value})
-            text = f"📈 Бюджет: {value}₽\n\n💬 Напишите ваш номер телефона для обсуждения:"
-            vk_send_message(user_id, text, phone_request_kb())
-            send_callback_answer(payload.get("event_id"), user_id, {"type": "show_snackbar", "text": "Ждём ваш телефон 👇"})
-            return
-    
-    # ✅ ЧЕК-ЛИСТ
-    if cmd == "get_checklist":
-        text = f"🎉 Готово!\n\n📄 Чек-лист «7 ошибок при покупке»\n💡 {CHECKLIST_URL or 'Доступен после консультации'}"
-        vk_send_message(user_id, text, channel_kb())
-        send_callback_answer(payload.get("event_id"), user_id, {"type": "show_snackbar", "text": "Чек-лист отправлен 📥"})
-        return
-    
-    # ✅ FAQ
-    if cmd == "faq":
-        text = """💬 Частые вопросы:
-
-❓ Комиссия? → 2-3%, после сделки
-❓ Ипотека? → Да, со всеми банками
-❓ Проверка? → Юридическая чистота + отчёт"""
-        vk_send_message(user_id, text, main_menu_kb())
-        send_callback_answer(payload.get("event_id"), user_id, {"type": "show_snackbar", "text": "Показываю ответы 💬"})
-        return
-    
-    # ✅ РЕФЕРАЛКА
-    if cmd == "referral":
-        text = f"🤝 Приглашайте — получайте 15 000₽\n\nВаша ссылка:\n{VK_GROUP_LINK}"
-        vk_send_message(user_id, text, main_menu_kb())
-        send_callback_answer(payload.get("event_id"), user_id, {"type": "show_snackbar", "text": "Ваша ссылка скопирована 🎁"})
-        return
-    
-    # Fallback
-    send_callback_answer(payload.get("event_id"), user_id, {"type": "show_snackbar", "text": "Команда принята ✅"})
+📝 Напишите команду:
+• купить — подобрать квартиру
+• продать — продать недвижимость
+• инвест — инвестиции
+• помощь — частые вопросы
+"""
+    vk_send_message(user_id, text)
 
 
 def handle_message(user_id, name, text):
@@ -532,39 +275,90 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, f"✅ Спасибо, {name}! 🙏\n\nТелефон: {phone}\nСвяжусь в течение 2 часов!\n\n📢 {VK_GROUP_LINK}")
             return
     
-    # ✅ КОМАНДЫ ТЕКСТОМ (для веб-версии)
+    # ✅ КОМАНДЫ
     if cmd in ["начать", "старт", "/start"]:
         handle_start(user_id, name)
         return
+    
     if cmd == "купить":
         save_user_state(user_id, name, '', {'goal': 'buy'})
-        vk_send_message(user_id, f"{name}, понял! 🔑 1️⃣ Ваш бюджет? (напишите: 5 млн или 5000000)", budget_kb())
+        vk_send_message(user_id, f"{name}, понял! 🔑 1️⃣ Ваш бюджет? (напишите: 5 млн или 5000000)")
         return
+    
     if cmd == "продать":
         save_user_state(user_id, name, '', {'goal': 'sell'})
-        vk_send_message(user_id, f"{name}, помогу продать! 🏡 1️⃣ Тип объекта?", property_type_kb())
+        vk_send_message(user_id, f"{name}, помогу продать! 🏡 1️⃣ Тип объекта? (квартира/дом/комната)")
         return
+    
     if cmd == "инвест":
         save_user_state(user_id, name, '', {'goal': 'invest'})
-        vk_send_message(user_id, "📊 Инвестиции: выберите бюджет", invest_budget_kb())
+        vk_send_message(user_id, "📊 Инвестиции: напишите бюджет (например: 2000000)")
         return
+    
     if cmd == "помощь":
         vk_send_message(user_id, """💬 Частые вопросы:
 ❓ Комиссия? → 2-3%
 ❓ Ипотека? → Да
-❓ Проверка? → Юридическая чистота""", main_menu_kb())
+❓ Проверка? → Юридическая чистота""")
         return
     
-    # ✅ БЮДЖЕТ ТЕКСТОМ (если в сценарии покупки)
+    # ✅ БЮДЖЕТ (если в сценарии покупки)
     if state and state.get('goal') == 'buy' and not state.get('budget'):
         budget = extract_budget(text)
         if budget:
             save_user_state(user_id, name, '', {'budget': budget})
-            vk_send_message(user_id, f"✅ Бюджет: {budget}₽\n\n2️⃣ Когда планируете сделку?", deadline_kb())
+            vk_send_message(user_id, f"✅ Бюджет: {budget}₽\n\n2️⃣ Когда планируете сделку?\n\n• срочно\n• месяц\n• смотрю")
+            return
+    
+    # ✅ СРОК (если бюджет уже указан)
+    if state and state.get('goal') == 'buy' and state.get('budget') and not state.get('deadline'):
+        deadline_map = {'срочно': '🔥 Срочно', 'неделю': '🔥 Срочно', 'быстро': '🔥 Срочно', 'месяц': '📅 1-3 месяца', '3 месяца': '📅 1-3 месяца', 'смотрю': '👀 Просто присматриваюсь', 'присматриваюсь': '👀 Просто присматриваюсь'}
+        deadline_text = None
+        for key, value in deadline_map.items():
+            if key in cmd:
+                deadline_text = value
+                break
+        if deadline_text:
+            save_user_state(user_id, name, '', {'deadline': deadline_text})
+            vk_send_message(user_id, "🔥 Отлично!\n\n📞 Напишите ваш номер телефона:")
+            return
+    
+    # ✅ ТИП НЕДВИЖИМОСТИ (продажа)
+    if state and state.get('goal') == 'sell' and not state.get('prop_type'):
+        prop_map = {'квартира': 'Квартира', 'квартиру': 'Квартира', 'дом': 'Дом', 'дома': 'Дом', 'комната': 'Комната', 'комнату': 'Комната', 'гараж': 'Гараж', 'участок': 'Участок', 'земля': 'Участок'}
+        prop_type = None
+        for key, value in prop_map.items():
+            if key in cmd:
+                prop_type = value
+                break
+        if prop_type:
+            save_user_state(user_id, name, '', {'prop_type': prop_type})
+            vk_send_message(user_id, f"✅ Тип: {prop_type}\n\n2️⃣ Район Тулы?\n\n• центр\n• заречье\n• пролетарский\n• любой")
+            return
+    
+    # ✅ РАЙОН (продажа)
+    if state and state.get('goal') == 'sell' and state.get('prop_type') and not state.get('district'):
+        district_map = {'центр': 'Центральный', 'центральный': 'Центральный', 'заречье': 'Заречье', 'пролетарский': 'Пролетарский', 'привокзальный': 'Привокзальный', 'любой': 'Любой'}
+        district_text = None
+        for key, value in district_map.items():
+            if key in cmd:
+                district_text = value
+                break
+        if district_text:
+            save_user_state(user_id, name, '', {'district': district_text})
+            vk_send_message(user_id, "✅ Отлично! 🏡 Я подготовлю оценку.\n\n📞 Напишите ваш номер телефона:")
+            return
+    
+    # ✅ БЮДЖЕТ ИНВЕСТИЦИЙ
+    if state and state.get('goal') == 'invest' and not state.get('invest_budget'):
+        invest_budget = extract_budget(text)
+        if invest_budget:
+            save_user_state(user_id, name, '', {'invest_budget': invest_budget})
+            vk_send_message(user_id, f"📈 Бюджет: {invest_budget}₽\n\n💬 Напишите ваш номер телефона:")
             return
     
     # ❌ НЕИЗВЕСТНОЕ
-    vk_send_message(user_id, f"👋 {name}, выберите действие в меню:", main_menu_kb())
+    vk_send_message(user_id, f"👋 {name}, напишите команду:\n\n• купить\n• продать\n• инвест\n• помощь")
 
 
 # ==================== WEBHOOK ====================
@@ -581,29 +375,14 @@ def vk_webhook():
         obj = data.get("object", {})
         event_type = data.get("type")
         
-        # ✅ СООБЩЕНИЕ (текст)
         if event_type == "message_new":
             message = obj.get("message", {})
             user_id = message.get("from_id")
             name = message.get("from_name", "") or vk_get_user_name(user_id)
             text = message.get("text", "")
-            conv_id = message.get("conversation_message_id")
             logger.info(f"Message: user={user_id}, name={name}, text='{text}'")
             if user_id:
                 handle_message(user_id, name, text)
-            return "ok", 200
-        
-        # ✅ НАЖАТИЕ КНОПКИ (callback)
-        if event_type == "message_event":
-            message = obj.get("message", {})
-            user_id = message.get("from_id") or obj.get("user_id")
-            name = message.get("from_name", "") or vk_get_user_name(user_id)
-            payload = json.loads(obj.get("payload", "{}"))
-            payload["event_id"] = obj.get("event_id")
-            conv_id = message.get("conversation_message_id")
-            logger.info(f"Callback: user={user_id}, payload={payload}")
-            if user_id:
-                handle_callback(user_id, name, payload, conv_id)
             return "ok", 200
         
         return "ok", 200
