@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Tula Key Bot — FIXED PHONE CHECK
+# Tula Key Bot — FINAL FIXED VERSION
 
 import os
 import json
@@ -42,6 +42,21 @@ def vk_api_call(method, params):
     except Exception as e:
         logger.error(f"VK API exception: {e}")
         return None
+
+
+def vk_get_user_name(user_id):
+    """Получаем имя пользователя из VK API"""
+    try:
+        params = {"user_ids": user_id, "fields": "first_name"}
+        result = vk_api_call("users.get", params)
+        if result and len(result) > 0:
+            name = result[0].get("first_name", "Пользователь")
+            logger.info(f"Got user name: {name}")
+            return name
+        return "Пользователь"
+    except Exception as e:
+        logger.error(f"Failed to get user name: {e}")
+        return "Пользователь"
 
 
 def get_random_id():
@@ -127,7 +142,6 @@ def invest_budget_keyboard():
 
 
 def phone_keyboard():
-    """Клавиатура для запроса телефона"""
     buttons = [
         [get_button('🔙 В главное меню', {'cmd': 'menu'}, 'secondary')]
     ]
@@ -161,7 +175,6 @@ def extract_budget(text):
 
 
 def normalize_phone(text):
-    """Проверяет является ли текст номером телефона"""
     cleaned = ''.join(c for c in text if c.isdigit() or c == '+')
     if len(cleaned) < 10:
         return None, False
@@ -183,6 +196,7 @@ def get_sheet():
         from google.oauth2.service_account import Credentials
         import gspread
         if not GOOGLE_CREDS_JSON or not GOOGLE_SHEET_ID:
+            logger.error("Google Sheets credentials not set")
             return None
         scopes = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(json.loads(GOOGLE_CREDS_JSON), scopes=scopes)
@@ -191,6 +205,7 @@ def get_sheet():
         first_row = sheet.row_values(1)
         if not first_row or first_row[0] != 'chat_id':
             sheet.append_row(['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at', 'status'])
+            logger.info("Created Google Sheets headers")
         return sheet
     except Exception as e:
         logger.error(f"Google Sheets error: {e}")
@@ -205,6 +220,7 @@ def save_user_state(chat_id, name, data):
         rows = sheet.get_all_values()
         row_idx = None
         existing_data = {}
+        
         for i, row in enumerate(rows[1:], 2):
             if row and len(row) > 0 and str(row[0]) == str(chat_id):
                 status = row[11] if len(row) > 11 else ''
@@ -219,6 +235,7 @@ def save_user_state(chat_id, name, data):
                         'invest_budget': row[8] if len(row) > 8 else '',
                     }
                     break
+        
         merged = {**existing_data, **data}
         row_data = [
             str(chat_id), name or '', '',
@@ -227,13 +244,19 @@ def save_user_state(chat_id, name, data):
             merged.get('district', ''), merged.get('invest_budget', ''),
             merged.get('phone', ''), datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'new'
         ]
+        
         if row_idx:
             sheet.update(f'A{row_idx}:L{row_idx}', [row_data])
+            logger.info(f"Updated row {row_idx} with: {merged}")
         else:
             sheet.append_row(row_data)
+            logger.info(f"Created new row for {chat_id} with: {merged}")
+        
         return True
     except Exception as e:
         logger.error(f"Save error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return False
 
 
@@ -242,12 +265,14 @@ def get_user_state(chat_id):
     if not sheet:
         return None
     try:
-        for row in sheet.get_all_values()[1:]:
+        rows = sheet.get_all_values()
+        for row in rows[1:]:
             if row and len(row) > 0 and str(row[0]) == str(chat_id):
                 status = row[11] if len(row) > 11 else ''
                 if status == 'new':
-                    return {
-                        'chat_id': row[0], 'name': row[1],
+                    state = {
+                        'chat_id': row[0],
+                        'name': row[1],
                         'goal': row[3] if len(row) > 3 else '',
                         'budget': row[4] if len(row) > 4 else '',
                         'deadline': row[5] if len(row) > 5 else '',
@@ -257,8 +282,12 @@ def get_user_state(chat_id):
                         'phone': row[9] if len(row) > 9 else '',
                         'status': status,
                     }
+                    logger.info(f"Got state for {chat_id}: {state}")
+                    return state
+        logger.info(f"No state found for {chat_id}")
         return None
-    except:
+    except Exception as e:
+        logger.error(f"Get state error: {e}")
         return None
 
 
@@ -274,9 +303,11 @@ def mark_lead_sent(chat_id):
                 if status == 'new':
                     sheet.update_cell(i, 12, 'sent')
                     sheet.update_cell(i, 11, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                    logger.info(f"Marked {chat_id} as sent")
                     return True
         return False
-    except:
+    except Exception as e:
+        logger.error(f"Mark error: {e}")
         return False
 
 
@@ -284,14 +315,26 @@ def send_lead_to_admin(name, phone, user_id, state):
     goal = state.get('goal', '')
     emoji = {'buy': '🏠', 'sell': '💰', 'invest': '📊'}.get(goal, '❓')
     lines = [f"🔥 НОВЫЙ ЛИД | {emoji} {goal.upper()}", "━" * 30, f"👤 {name}", f"📞 {phone}", f"🆔 VK: {user_id}"]
-    if goal == 'buy' and state.get('budget'):
-        lines.append(f"💰 Бюджет: {state['budget']}")
-    if goal == 'sell' and state.get('prop_type'):
-        lines.append(f"🏠 Тип: {state['prop_type']}")
+    
+    if goal == 'buy':
+        if state.get('budget'):
+            lines.append(f"💰 Бюджет: {state['budget']}")
+        if state.get('deadline'):
+            lines.append(f"⏰ Срок: {state['deadline']}")
+    elif goal == 'sell':
+        if state.get('prop_type'):
+            lines.append(f"🏠 Тип: {state['prop_type']}")
         if state.get('district'):
             lines.append(f"📍 Район: {state['district']}")
+    elif goal == 'invest':
+        if state.get('invest_budget'):
+            lines.append(f"💵 Бюджет: {state['invest_budget']}")
+    
+    lines.append("━" * 30)
+    
     if VK_ADMIN_ID:
         vk_send_message(VK_ADMIN_ID, "\n".join(lines))
+        logger.info(f"Lead sent to admin {VK_ADMIN_ID}")
 
 
 # ==================== HANDLERS ====================
@@ -302,6 +345,7 @@ def handle_start(user_id, name):
         'goal': '', 'budget': '', 'deadline': '',
         'prop_type': '', 'district': '', 'invest_budget': '', 'phone': ''
     })
+    
     text = f"""🔑 Привет, {name}! Я — помощник «Тульского ключа»
 
 🎁 Чек-лист: {CHECKLIST_URL or 'после консультации'}
@@ -312,15 +356,23 @@ def handle_start(user_id, name):
 
 def handle_message(user_id, name, text):
     cmd = text.strip().lower()
+    
+    # ✅ ПОЛУЧАЕМ ИМЯ ИЗ VK API ЕСЛИ НЕ ПЕРЕДАНО
+    if not name or name == "Пользователь":
+        name = vk_get_user_name(user_id)
+        logger.info(f"Resolved name: {name}")
+    
+    # ✅ ПОЛУЧАЕМ СОСТОЯНИЕ
     state = get_user_state(user_id)
     
-    logger.info(f"=== MESSAGE ===")
-    logger.info(f"User: {name}, Text: '{text}'")
-    logger.info(f"State: {state}")
+    logger.info(f"=== MESSAGE START ===")
+    logger.info(f"User: {user_id}, Name: {name}, Text: '{text}'")
+    logger.info(f"Current state: {state}")
     
     # ============================================
-    # ✅ 1. ПРОВЕРЯЕМ КНОПКИ ГЛАВНОГО МЕНЮ (всегда!)
+    # ✅ 1. ПРОВЕРЯЕМ КНОПКИ ГЛАВНОГО МЕНЮ (ВСЕГДА!)
     # ============================================
+    
     if cmd in ["начать", "старт", "/start", "меню", "🔙 в главное меню"]:
         handle_start(user_id, name)
         return
@@ -351,17 +403,19 @@ def handle_message(user_id, name, text):
     # ============================================
     # ✅ 2. ТЕПЕРЬ ПРОВЕРЯЕМ СЦЕНАРИИ
     
-    # ПОКУПКА
+    # 🔹 ПОКУПКА
     if state and state.get('goal') == 'buy':
         logger.info("In BUY scenario")
         
-        # Если уже есть телефон — это завершённая заявка, показываем меню
+        # Если уже есть телефон — завершённая заявка
         if state.get('phone'):
+            logger.info("Buy scenario completed, showing menu")
             vk_send_message(user_id, f"👋 {name}, выберите действие:", main_menu_keyboard())
             return
         
         # Шаг 1: Нет бюджета
         if not state.get('budget'):
+            logger.info("Step 1: No budget")
             budget = extract_budget(text)
             if budget:
                 save_user_state(user_id, name, {'budget': budget})
@@ -373,6 +427,7 @@ def handle_message(user_id, name, text):
         
         # Шаг 2: Есть бюджет, нет срока
         if state.get('budget') and not state.get('deadline'):
+            logger.info("Step 2: Have budget, need deadline")
             if 'срочно' in cmd or 'неделю' in cmd:
                 save_user_state(user_id, name, {'deadline': 'Срочно'})
                 vk_send_message(user_id, "🔥 Отлично!\n\n📞 Напишите телефон:", phone_keyboard())
@@ -391,28 +446,30 @@ def handle_message(user_id, name, text):
         
         # Шаг 3: Есть бюджет и срок, ждём телефон
         if state.get('budget') and state.get('deadline') and not state.get('phone'):
+            logger.info("Step 3: Have budget+deadline, need phone")
             phone, valid = normalize_phone(text)
             if valid:
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                vk_send_message(user_id, f"✅ Спасибо! Телефон: {phone}\nСвяжусь в течение 2 часов!", main_menu_keyboard())
+                vk_send_message(user_id, f"✅ Спасибо, {name}! 🙏\n\nТелефон: {phone}\nСвяжусь в течение 2 часов!", main_menu_keyboard())
                 return
             else:
-                vk_send_message(user_id, f"⚠️ Это не телефон. Попробуйте ещё раз:\n+7 999 123-45-67", phone_keyboard())
+                vk_send_message(user_id, f"⚠️ {name}, это не телефон. Попробуйте ещё раз:\n+7 999 123-45-67", phone_keyboard())
                 return
     
-    # ПРОДАЖА
+    # 🔹 ПРОДАЖА
     if state and state.get('goal') == 'sell':
         logger.info("In SELL scenario")
         
-        # Если уже есть телефон — завершённая заявка
         if state.get('phone'):
+            logger.info("Sell scenario completed, showing menu")
             vk_send_message(user_id, f"👋 {name}, выберите действие:", main_menu_keyboard())
             return
         
         # Шаг 1: Нет типа
         if not state.get('prop_type'):
+            logger.info("Step 1: No prop_type")
             if 'квартира' in cmd:
                 save_user_state(user_id, name, {'prop_type': 'Квартира'})
                 vk_send_message(user_id, "✅ Квартира\n\n2️⃣ Район?", district_keyboard())
@@ -435,6 +492,7 @@ def handle_message(user_id, name, text):
         
         # Шаг 2: Есть тип, нет района
         if state.get('prop_type') and not state.get('district'):
+            logger.info("Step 2: Have prop_type, need district")
             if 'центр' in cmd:
                 save_user_state(user_id, name, {'district': 'Центральный'})
                 vk_send_message(user_id, "✅ Центр\n\n📞 Напишите телефон:", phone_keyboard())
@@ -457,51 +515,55 @@ def handle_message(user_id, name, text):
         
         # Шаг 3: Есть тип и район, ждём телефон
         if state.get('prop_type') and state.get('district') and not state.get('phone'):
+            logger.info("Step 3: Have prop_type+district, need phone")
             phone, valid = normalize_phone(text)
             if valid:
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                vk_send_message(user_id, f"✅ Спасибо! Телефон: {phone}\nСвяжусь в течение 2 часов!", main_menu_keyboard())
+                vk_send_message(user_id, f"✅ Спасибо, {name}! 🙏\n\nТелефон: {phone}\nСвяжусь в течение 2 часов!", main_menu_keyboard())
                 return
             else:
-                vk_send_message(user_id, f"⚠️ Это не телефон. Попробуйте ещё раз:\n+7 999 123-45-67", phone_keyboard())
+                vk_send_message(user_id, f"⚠️ {name}, это не телефон. Попробуйте ещё раз:\n+7 999 123-45-67", phone_keyboard())
                 return
     
-    # ИНВЕСТИЦИИ
+    # 🔹 ИНВЕСТИЦИИ
     if state and state.get('goal') == 'invest':
         logger.info("In INVEST scenario")
         
         if state.get('phone'):
+            logger.info("Invest scenario completed, showing menu")
             vk_send_message(user_id, f"👋 {name}, выберите действие:", main_menu_keyboard())
             return
         
         if not state.get('invest_budget'):
+            logger.info("Step 1: No invest_budget")
             budget = extract_budget(text)
             if budget:
                 save_user_state(user_id, name, {'invest_budget': budget})
                 vk_send_message(user_id, f"📈 Бюджет: {budget}₽\n\n💬 Напишите телефон:", phone_keyboard())
                 return
             else:
-                vk_send_message(user_id, "Напишите бюджет (например: 2000000)", invest_budget_keyboard())
+                vk_send_message(user_id, "Напишите бюджет (например: 2000000 или 2 млн)", invest_budget_keyboard())
                 return
         
         if state.get('invest_budget') and not state.get('phone'):
+            logger.info("Step 2: Have invest_budget, need phone")
             phone, valid = normalize_phone(text)
             if valid:
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                vk_send_message(user_id, f"✅ Спасибо! Телефон: {phone}\nСвяжусь в течение 2 часов!", main_menu_keyboard())
+                vk_send_message(user_id, f"✅ Спасибо, {name}! 🙏\n\nТелефон: {phone}\nСвяжусь в течение 2 часов!", main_menu_keyboard())
                 return
             else:
-                vk_send_message(user_id, f"⚠️ Это не телефон. Попробуйте ещё раз:", phone_keyboard())
+                vk_send_message(user_id, f"⚠️ {name}, это не телефон. Попробуйте ещё раз:", phone_keyboard())
                 return
     
     # ============================================
     # ✅ 3. НЕИЗВЕСТНАЯ КОМАНДА — показываем меню
     vk_send_message(user_id, f"👋 {name}, выберите действие:", main_menu_keyboard())
-    logger.info("=== END MESSAGE ===")
+    logger.info("=== MESSAGE END ===")
 
 
 # ==================== WEBHOOK ====================
@@ -521,8 +583,9 @@ def vk_webhook():
         if event_type == "message_new":
             msg = obj.get("message", {})
             user_id = msg.get("from_id")
-            name = msg.get("from_name", "Пользователь")
+            name = msg.get("from_name", "")
             text = msg.get("text", "")
+            logger.info(f"Message: user={user_id}, name='{name}', text='{text}'")
             if user_id:
                 handle_message(user_id, name, text)
             return "ok", 200
@@ -530,6 +593,8 @@ def vk_webhook():
         return "ok", 200
     except Exception as e:
         logger.error(f"Error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return "error", 500
 
 
