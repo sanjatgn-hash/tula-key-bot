@@ -347,8 +347,9 @@ INVEST_MAP = {"i2": "до 2 млн", "i5": "2–5 млн", "i5p": "5+ млн"}
 def handle_start(user_id, name):
     logger.info(f"🚀 handle_start called for user_id={user_id}, name={name}")
     text = f"🔑 Привет, {name}! Я — помощник «Тульского ключа»\n\nПомогаю найти квартиру в Туле без стресса 🏠\n\n🎁 Подарок: чек-лист «7 ошибок при покупке»\n→ сэкономит от 100 000₽"
-    logger.info(f"📤 Sending start message to {user_id}")
-    response = vk_send_message(user_id, text, main_menu_kb())
+    logger.info(f"📤 Sending start message to {user_id} WITHOUT keyboard (TEST)")
+    # ✅ БЕЗ КЛАВИАТУРЫ - просто проверим что сообщения работают!
+    response = vk_send_message(user_id, text, buttons=None)
     logger.info(f"📥 handle_start complete, response: {response}")
 
 
