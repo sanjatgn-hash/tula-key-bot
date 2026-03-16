@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "buildCommand": "pip install -r requirements.txt --force-reinstall",
   "builds": [
     {
       "src": "api/vk_webhook.py",
