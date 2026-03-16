@@ -70,59 +70,17 @@ def vk_send_message(user_id, text, keyboard=None):
 # ==================== VK КЛАВИАТУРЫ (ПРАВИЛЬНЫЙ ФОРМАТ) ====================
 
 def main_menu_kb():
-    """Главное меню — формат VK"""
+    """Главное меню — МИНИМАЛЬНЫЙ ТЕСТ (1 кнопка)"""
     return {
-        "one_time": False,
         "inline": True,
         "buttons": [
             [
                 {
                     "action": {
                         "type": "text",
-                        "payload": json.dumps({"command": "get_checklist"})
+                        "payload": "{\"command\": \"test\"}"
                     },
-                    "label": "📥 Получить чек-лист"
-                }
-            ],
-            [
-                {
-                    "action": {
-                        "type": "text",
-                        "payload": json.dumps({"command": "goal_buy"})
-                    },
-                    "label": "🔍 Подобрать квартиру"
-                },
-                {
-                    "action": {
-                        "type": "text",
-                        "payload": json.dumps({"command": "goal_sell"})
-                    },
-                    "label": "💰 Продать"
-                }
-            ],
-            [
-                {
-                    "action": {
-                        "type": "text",
-                        "payload": json.dumps({"command": "goal_invest"})
-                    },
-                    "label": "📊 Инвестиции"
-                },
-                {
-                    "action": {
-                        "type": "text",
-                        "payload": json.dumps({"command": "faq"})
-                    },
-                    "label": "💬 Задать вопрос"
-                }
-            ],
-            [
-                {
-                    "action": {
-                        "type": "text",
-                        "payload": json.dumps({"command": "referral"})
-                    },
-                    "label": "🎁 Пригласить друга"
+                    "label": "Тест"
                 }
             ]
         ]
