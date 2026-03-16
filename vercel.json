@@ -2,18 +2,18 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/vk_bot.py",
+      "src": "api/vk_webhook.py"
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/health",
-      "dest": "api/vk_bot.py"
+      "dest": "api/vk_webhook.py"
     },
     {
       "src": "/vk_callback",
-      "dest": "api/vk_bot.py"
+      "dest": "vk_webhook.py"
     }
   ]
 }
