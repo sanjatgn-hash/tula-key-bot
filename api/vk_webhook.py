@@ -260,6 +260,7 @@ def send_lead_to_admin(name, phone, chat_id, state):
 # ==================== КЛАВИАТУРЫ ====================
 
 def main_menu_kb():
+    # VERSION 2 - Fixed keyboard format
     return {
         "inline": True,
         "buttons": [
