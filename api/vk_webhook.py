@@ -70,17 +70,17 @@ def vk_send_message(user_id, text, keyboard=None):
 # ==================== VK КЛАВИАТУРЫ (ПРАВИЛЬНЫЙ ФОРМАТ) ====================
 
 def main_menu_kb():
-    """Главное меню — МИНИМАЛЬНЫЙ ТЕСТ (1 кнопка)"""
+    """Главное меню — формат VK с callback"""
     return {
         "inline": True,
         "buttons": [
             [
                 {
                     "action": {
-                        "type": "text",
-                        "payload": "{\"command\": \"test\"}"
+                        "type": "callback",
+                        "payload": "test_btn"
                     },
-                    "label": "Тест"
+                    "label": "Test"
                 }
             ]
         ]
