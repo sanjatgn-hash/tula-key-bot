@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Бот ВКонтакте «Тульский ключ» — ТЕКСТОВЫЕ КОМАНДЫ (100% работает)
+# Tula Key Bot - VKontakte
 
 import os
 import json
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# ==================== НАСТРОЙКИ ====================
+# ==================== SETTINGS ====================
 VK_TOKEN = os.getenv("VK_TOKEN", "")
 VK_GROUP_ID = os.getenv("VK_GROUP_ID", "")
 VK_CONFIRMATION_TOKEN = os.getenv("VK_CONFIRMATION_TOKEN", "")
@@ -23,9 +23,9 @@ VK_GROUP_LINK = os.getenv("VK_GROUP_LINK", "https://vk.com/tula_key")
 GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "")
 GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON", "")
 
-logger.info(f"🔍 VK_TOKEN: {'✅' if VK_TOKEN else '❌'}")
-logger.info(f"🔍 VK_GROUP_ID: {'✅' if VK_GROUP_ID else '❌'}")
-logger.info(f"🔍 VK_ADMIN_ID: {'✅' if VK_ADMIN_ID else '❌'}")
+logger.info(f"VK_TOKEN: {'OK' if VK_TOKEN else 'MISSING'}")
+logger.info(f"VK_GROUP_ID: {'OK' if VK_GROUP_ID else 'MISSING'}")
+logger.info(f"VK_ADMIN_ID: {'OK' if VK_ADMIN_ID else 'MISSING'}")
 
 
 # ==================== VK API ====================
@@ -40,16 +40,15 @@ def vk_api_call(method, params):
         resp = requests.post(f"https://api.vk.com/method/{method}", data=params, timeout=10)
         result = resp.json()
         if "error" in result:
-            logger.error(f"❌ VK API ERROR: {result['error']}")
+            logger.error(f"VK API ERROR: {result['error']}")
             return None
         return result.get("response", {})
     except Exception as e:
-        logger.error(f"❌ VK API exception: {e}")
+        logger.error(f"VK API exception: {e}")
         return None
 
 
 def vk_send_message(user_id, text):
-    """Отправка сообщения БЕЗ клавиатуры"""
     params = {
         "user_id": user_id,
         "message": text,
@@ -57,94 +56,9 @@ def vk_send_message(user_id, text):
     }
     result = vk_api_call("messages.send", params)
     if result:
-        logger.info(f"✅ Message sent to {user_id}")
+        logger.info(f"Message sent to {user_id}")
     else:
-        logger.error(f"❌ Failed to send message to {user_id}")
-    return result
-
-
-# ==================== GOOGLE SHEETS ====================
-
-def get_sheet():
-    try:
-        from google.oauth2.service_account import Credentials
-        import gspread
-        
-        if not GOOGLE_CRE# 🚨 Код ВСЁ ЕЩЁ НЕ ОБНОВИЛСЯ! Vercel кэширует старую версию
-
-Вижу в ошибке: `"payload": "test_btn"` — это **старый код**! Значит Vercel не применил изменения.
-
----
-
-## ✅ ФИНАЛЬНОЕ РЕШЕНИЕ: Бот БЕЗ кнопок (100% работает)
-
-Давайте уберём клавиатуры совсем. Бот будет работать на **текстовых командах** — это надёжнее и проще.
-
-*Замените ВЕСЬ файл `api/vk_webhook.py` на этот:*
-
-```python
-# api/vk_webhook.py
-# Бот ВКонтакте «Тульский ключ» — ТЕКСТОВЫЕ КОМАНДЫ (без кнопок)
-
-import os
-import json
-import logging
-import requests
-from flask import Flask, request
-from datetime import datetime
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-app = Flask(__name__)
-
-# ==================== НАСТРОЙКИ ====================
-VK_TOKEN = os.getenv("VK_TOKEN", "")
-VK_GROUP_ID = os.getenv("VK_GROUP_ID", "")
-VK_CONFIRMATION_TOKEN = os.getenv("VK_CONFIRMATION_TOKEN", "")
-VK_ADMIN_ID = os.getenv("VK_ADMIN_ID", "")
-CHECKLIST_URL = os.getenv("CHECKLIST_URL", "")
-VK_GROUP_LINK = os.getenv("VK_GROUP_LINK", "https://vk.com/tula_key")
-GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "")
-GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON", "")
-
-logger.info(f"🔍 VK_TOKEN: {'✅' if VK_TOKEN else '❌'}")
-logger.info(f"🔍 VK_GROUP_ID: {'✅' if VK_GROUP_ID else '❌'}")
-logger.info(f"🔍 VK_ADMIN_ID: {'✅' if VK_ADMIN_ID else '❌'}")
-
-
-# ==================== VK API ====================
-
-def vk_api_call(method, params):
-    params.update({
-        "access_token": VK_TOKEN,
-        "v": "5.199",
-        "group_id": VK_GROUP_ID
-    })
-    try:
-        resp = requests.post(f"https://api.vk.com/method/{method}", data=params, timeout=10)
-        result = resp.json()
-        if "error" in result:
-            logger.error(f"❌ VK API ERROR: {result['error']}")
-            return None
-        return result.get("response", {})
-    except Exception as e:
-        logger.error(f"❌ VK API exception: {e}")
-        return None
-
-
-def vk_send_message(user_id, text):
-    """Отправка сообщения БЕЗ клавиатуры"""
-    params = {
-        "user_id": user_id,
-        "message": text,
-        "random_id": 0
-    }
-    result = vk_api_call("messages.send", params)
-    if result:
-        logger.info(f"✅ Message sent to {user_id}")
-    else:
-        logger.error(f"❌ Failed to send message to {user_id}")
+        logger.error(f"Failed to send message to {user_id}")
     return result
 
 
@@ -156,7 +70,7 @@ def get_sheet():
         import gspread
         
         if not GOOGLE_CREDS_JSON or not GOOGLE_SHEET_ID:
-            logger.error("❌ Google Sheets credentials not set")
+            logger.error("Google Sheets credentials not set")
             return None
         
         scopes = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -169,11 +83,11 @@ def get_sheet():
         if not first_row or first_row[0] != 'chat_id':
             headers = ['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at', 'status']
             sheet.append_row(headers)
-            logger.info("✅ Google Sheets headers created")
+            logger.info("Google Sheets headers created")
         
         return sheet
     except Exception as e:
-        logger.error(f"❌ Google Sheets: {e}")
+        logger.error(f"Google Sheets: {e}")
         return None
 
 
@@ -213,14 +127,14 @@ def save_user_state(chat_id, name, username, data):
         
         if last_active_row:
             sheet.update(f'A{last_active_row}:L{last_active_row}', [row_data])
-            logger.info(f"✅ Updated row {last_active_row}")
+            logger.info(f"Updated row {last_active_row}")
         else:
             sheet.append_row(row_data)
-            logger.info(f"✅ Created NEW row for {chat_id}")
+            logger.info(f"Created NEW row for {chat_id}")
         
         return True
     except Exception as e:
-        logger.error(f"❌ Save error: {e}")
+        logger.error(f"Save error: {e}")
         return False
 
 
@@ -251,7 +165,7 @@ def get_user_state(chat_id):
                     }
         return None
     except Exception as e:
-        logger.error(f"❌ Get state error: {e}")
+        logger.error(f"Get state error: {e}")
         return None
 
 
@@ -269,100 +183,94 @@ def mark_lead_sent(chat_id):
                 if status == 'new':
                     sheet.update_cell(i, 12, 'sent')
                     sheet.update_cell(i, 11, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-                    logger.info(f"✅ Marked row {i} as sent")
+                    logger.info(f"Marked row {i} as sent")
                     return True
         return False
     except Exception as e:
-        logger.error(f"❌ Mark error: {e}")
+        logger.error(f"Mark error: {e}")
         return False
 
 
 def send_lead_to_admin(name, phone, chat_id, state):
     goal_code = state.get('goal', '')
-    goal_map = {'buy': ('🏠', 'Покупка'), 'sell': ('💰', 'Продажа'), 'invest': ('📊', 'Инвестиции')}
-    emoji, goal_text = goal_map.get(goal_code, ("❓", "Неизвестно"))
+    goal_map = {'buy': ('Home', 'Buy'), 'sell': ('Money', 'Sell'), 'invest': ('Chart', 'Invest')}
+    emoji, goal_text = goal_map.get(goal_code, ("?", "Unknown"))
     
     lines = [
-        f"🔥 НОВЫЙ ЛИД | {emoji} {goal_text}",
-        "━━━━━━━━━━━━━━",
-        f"👤 Имя: {name}",
-        f"📞 Телефон: {phone}",
-        f"🆔 VK: {chat_id}"
+        f"NEW LEAD | {emoji} {goal_text}",
+        "-" * 30,
+        f"Name: {name}",
+        f"Phone: {phone}",
+        f"VK ID: {chat_id}"
     ]
     
     if goal_code == "buy":
-        if state.get('budget'): lines.append(f"💰 Бюджет: {state['budget']}")
-        if state.get('deadline'): lines.append(f"⏰ Срок: {state['deadline']}")
+        if state.get('budget'): lines.append(f"Budget: {state['budget']}")
+        if state.get('deadline'): lines.append(f"Deadline: {state['deadline']}")
     elif goal_code == "sell":
-        if state.get('prop_type'): lines.append(f"🏠 Тип: {state['prop_type']}")
-        if state.get('district'): lines.append(f"📍 Район: {state['district']}")
+        if state.get('prop_type'): lines.append(f"Type: {state['prop_type']}")
+        if state.get('district'): lines.append(f"District: {state['district']}")
     elif goal_code == "invest":
-        if state.get('invest_budget'): lines.append(f"💵 Бюджет: {state['invest_budget']}")
+        if state.get('invest_budget'): lines.append(f"Budget: {state['invest_budget']}")
     
-    lines.append("━━━━━━━━━━━━━━")
+    lines.append("-" * 30)
     
     if VK_ADMIN_ID:
         vk_send_message(VK_ADMIN_ID, "\n".join(lines))
-        logger.info(f"📩 Lead notification sent to VK admin {VK_ADMIN_ID}")
+        logger.info(f"Lead notification sent to VK admin {VK_ADMIN_ID}")
 
 
-# ==================== ОБРАБОТЧИКИ ====================
+# ==================== HANDLERS ====================
 
 def handle_start(user_id, name):
-    text = f"""🔑 Привет, {name}! Я — помощник «Тульского ключа»
+    text = f"""Hello, {name}! I am Tula Key assistant.
 
-Помогаю найти квартиру в Туле без стресса 🏠
+I help find apartments in Tula without stress.
 
-🎁 Подарок: чек-лист «7 ошибок при покупке»
-📥 Скачать: {CHECKLIST_URL}
+Gift: Checklist "7 mistakes when buying"
+Download: {CHECKLIST_URL}
 
-📝 Напишите команду:
-• купить — подобрать квартиру
-• продать — продать недвижимость
-• инвест — инвестиции
-• помощь — частые вопросы
+Commands:
+- buy - find apartment
+- sell - sell property
+- invest - investments
+- help - FAQ
 """
     vk_send_message(user_id, text)
 
 
 def handle_message(user_id, name, text):
-    logger.info(f"💬 handle_message: text='{text}'")
+    logger.info(f"Message: text='{text}'")
     
     cmd = text.strip().lower()
     
-    # Команда: купить
     if cmd == "купить":
         save_user_state(user_id, name, '', {'goal': 'buy'})
-        vk_send_message(user_id, f"{name}, понял! 🔑 1️⃣ Ваш бюджет? (напишите цифрами, например: 3000000)")
+        vk_send_message(user_id, f"{name}, got it! 1. What is your budget? (e.g., 3000000)")
         return
     
-    # Команда: продать
     if cmd == "продать":
         save_user_state(user_id, name, '', {'goal': 'sell'})
-        vk_send_message(user_id, f"{name}, помогу продать недвижимость в Туле 🏡\n\n1️⃣ Тип объекта? (квартира/дом/комната)")
+        vk_send_message(user_id, f"{name}, I will help sell property in Tula. 1. Property type? (apartment/house/room)")
         return
     
-    # Команда: инвест
     if cmd == "инвест":
         save_user_state(user_id, name, '', {'goal': 'invest'})
-        vk_send_message(user_id, "📊 Инвестиции: напишите желаемый бюджет (например: 2000000)")
+        vk_send_message(user_id, "Investments: enter your budget (e.g., 2000000)")
         return
     
-    # Команда: помощь
     if cmd == "помощь":
-        vk_send_message(user_id, """💬 Частые вопросы:
+        vk_send_message(user_id, """FAQ:
 
-❓ Комиссия? → 2-3%, после сделки
-❓ Ипотека? → Да, со всеми банками
-❓ Проверка? → Юридическая чистота + отчёт""")
+Commission: 2-3%, after deal
+Mortgage: Yes, all banks
+Verification: Legal check + report""")
         return
     
-    # Команда: начать / старт
-    if cmd in ["начать", "старт", "/start"]:
+    if cmd in ["начать", "старт", "/start", "start"]:
         handle_start(user_id, name)
         return
     
-    # Проверка телефона (10+ цифр)
     cleaned = ''.join(c for c in text if c.isdigit() or c == '+')
     if len(cleaned) >= 10:
         phone = cleaned
@@ -378,14 +286,13 @@ def handle_message(user_id, name, text):
             send_lead_to_admin(name, phone, user_id, state)
             mark_lead_sent(user_id)
         elif VK_ADMIN_ID:
-            vk_send_message(VK_ADMIN_ID, f"📞 КОНТАКТ!\n━━━━━━━━━━━━━━\n👤 {name}\n📞 {phone}\n🆔 VK: {user_id}")
+            vk_send_message(VK_ADMIN_ID, f"CONTACT!\nName: {name}\nPhone: {phone}\nVK: {user_id}")
         
-        vk_send_message(user_id, f"✅ Спасибо, {name}! 🙏\n\nТелефон: {phone}\nСвяжусь в течение 2 часов!\n\n📢 Наша группа: {VK_GROUP_LINK}")
-        logger.info(f"📞 Phone from {user_id}: {phone}")
+        vk_send_message(user_id, f"Thank you, {name}!\n\nPhone: {phone}\nI will contact within 2 hours!\n\nGroup: {VK_GROUP_LINK}")
+        logger.info(f"Phone from {user_id}: {phone}")
         return
     
-    # Неизвестная команда
-    vk_send_message(user_id, f"👋 {name}, напишите команду:\n\n• купить\n• продать\n• инвест\n• помощь\n\nИли напишите ваш телефон для связи:")
+    vk_send_message(user_id, f"{name}, enter command:\n\n- купить\n- продать\n- инвест\n- помощь\n\nOr enter your phone:")
 
 
 # ==================== WEBHOOK ====================
@@ -394,10 +301,10 @@ def handle_message(user_id, name, text):
 def vk_webhook():
     try:
         data = request.get_json(force=True)
-        logger.info(f"📬 VK webhook: type={data.get('type', 'unknown')}")
+        logger.info(f"VK webhook: type={data.get('type', 'unknown')}")
         
         if data.get("type") == "confirmation":
-            logger.info(f"✅ Confirmation requested, returning: {VK_CONFIRMATION_TOKEN}")
+            logger.info(f"Confirmation requested, returning: {VK_CONFIRMATION_TOKEN}")
             return VK_CONFIRMATION_TOKEN, 200
         
         obj = data.get("object", {})
@@ -406,13 +313,13 @@ def vk_webhook():
         if event_type == "message_new":
             message = obj.get("message", {})
             user_id = message.get("from_id")
-            name = message.get("from_name", "Пользователь")
+            name = message.get("from_name", "User")
             text = message.get("text", "")
             
-            logger.info(f"📩 Message: user_id={user_id}, text='{text}'")
+            logger.info(f"Message: user_id={user_id}, text='{text}'")
             
             if not user_id:
-                logger.error(f"❌ user_id is None!")
+                logger.error("user_id is None!")
                 return "ok", 200
             
             handle_message(user_id, name, text)
@@ -420,9 +327,9 @@ def vk_webhook():
         return "ok", 200
     
     except Exception as e:
-        logger.error(f"❌ VK webhook error: {e}")
+        logger.error(f"VK webhook error: {e}")
         import traceback
-        logger.error(f"💡 Traceback: {traceback.format_exc()}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return "error", 500
 
 
