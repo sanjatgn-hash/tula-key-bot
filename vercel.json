@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "buildCommand": "echo 'force rebuild' && pip install -r requirements.txt",
   "builds": [
     {"src": "api/vk_webhook.py", "use": "@vercel/python"}
   ],
