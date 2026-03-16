@@ -18,8 +18,8 @@ VK_TOKEN = os.getenv("VK_TOKEN", "")
 VK_GROUP_ID = os.getenv("VK_GROUP_ID", "")
 VK_CONFIRMATION_TOKEN = os.getenv("VK_CONFIRMATION_TOKEN", "")
 VK_ADMIN_ID = os.getenv("VK_ADMIN_ID", "")
-CHECKLIST_URL = os.getenv("CHECKLIST_URL", "https://t.me/tula_key_bot")
-CHANNEL_LINK = os.getenv("CHANNEL_LINK", "https://t.me/tula_key_channel")
+CHECKLIST_URL = os.getenv("CHECKLIST_URL", "")
+VK_GROUP_LINK = os.getenv("VK_GROUP_LINK", "https://vk.com/tula_key")
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "tula_key_channel")
 GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "")
 GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON", "")
@@ -293,7 +293,7 @@ def channel_kb():
         "one_time": False,
         "inline": True,
         "buttons": [
-            [{"action": {"type": "open_link", "link": f"https://t.me/{CHANNEL_USERNAME}"}, "color": "primary", "title": "📢 Подписаться на канал"}]
+            [{"action": {"type": "open_link", "link": VK_GROUP_LINK}, "color": "primary", "title": "📢 Подписаться на группу"}]
         ]
     }
 
