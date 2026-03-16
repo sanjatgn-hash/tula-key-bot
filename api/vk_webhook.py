@@ -456,7 +456,7 @@ def vk_webhook():
     try:
         data = request.get_json(force=True)
         logger.info(f"📬 VK webhook: type={data.get('type', 'unknown')}")
-        logger.debug(f"📋 Full webhook data: {json.dumps(data, ensure_ascii=False)[:500]}")
+        logger.debug(f"📋 Full webhook  {json.dumps(data, ensure_ascii=False)[:500]}")
         
         if data.get("type") == "confirmation":
             logger.info(f"✅ Confirmation requested, returning: {VK_CONFIRMATION_TOKEN}")
@@ -466,11 +466,19 @@ def vk_webhook():
         event_type = data.get("type", "")
         
         if event_type == "message_new":
-            user_id = obj.get("from_id")
-            name = obj.get("from_name", "Пользователь")
-            text = obj.get("text", "")
+            # ✅ VK передаёт сообщение внутри object.message
+            message = obj.get("message", {})
+            
+            user_id = message.get("from_id")
+            name = message.get("from_name", "Пользователь")
+            text = message.get("text", "")
             
             logger.info(f"📩 Message received: user_id={user_id}, name={name}, text='{text}'")
+            logger.debug(f"🔍 Full message: {json.dumps(message, ensure_ascii=False)[:300]}")
+            
+            if not user_id:
+                logger.error(f"❌ user_id is None! Full obj: {json.dumps(obj, ensure_ascii=False)[:500]}")
+                return "ok", 200
             
             if text in ["/start", "Начать", "Старт", "начать", "старт"]:
                 logger.info(f"✅ Start command matched! Calling handle_start")
@@ -480,13 +488,20 @@ def vk_webhook():
                 handle_message(user_id, name, text)
         
         elif event_type == "message_event":
+            # ✅ Обработка нажатий кнопок
+            message = obj.get("message", {})
             payload = json.loads(obj.get("payload", "{}"))
+            
             btn_data = payload.get("btn", "")
-            user_id = obj.get("user_id")
-            name = obj.get("from_name", "Пользователь")
+            user_id = message.get("from_id") or obj.get("user_id")
+            name = message.get("from_name", "Пользователь")
             
             logger.info(f"🔘 Button click: user_id={user_id}, btn_data={btn_data}")
-            handle_callback(user_id, name, btn_data)
+            
+            if user_id:
+                handle_callback(user_id, name, btn_data)
+            else:
+                logger.error(f"❌ user_id is None in message_event!")
         
         return "ok", 200
     
