@@ -42,11 +42,22 @@ def vk_api_call(method, params):
     try:
         resp = requests.post(f"https://api.vk.com/method/{method}", data=params, timeout=10)
         logger.debug(f"📥 VK API raw response: {resp.text}")
-        result = resp.json().get("response", {})
+        
+        response_json = resp.json()
+        logger.debug(f"📥 VK API parsed JSON: {response_json}")
+        
+        # ✅ ПРОВЕРЯЕМ НА ОШИБКУ
+        if "error" in response_json:
+            error = response_json["error"]
+            logger.error(f"❌ VK API ERROR: error_code={error.get('error_code')}, error_msg={error.get('error_msg')}")
+            logger.error(f"💡 Full error: {json.dumps(error, ensure_ascii=False)}")
+            return None
+        
+        result = response_json.get("response", {})
         logger.debug(f"✅ VK API parsed response: {result}")
         return result
     except Exception as e:
-        logger.error(f"❌ VK API error: {e}")
+        logger.error(f"❌ VK API exception: {e}")
         import traceback
         logger.error(f"💡 Traceback: {traceback.format_exc()}")
         return None
@@ -68,13 +79,14 @@ def vk_send_message(user_id, text, buttons=None):
     logger.info(f"🔍 Calling VK API messages.send...")
     result = vk_api_call("messages.send", params)
     
+    # ✅ ДОБАВЛЕНО: подробный лог результата
     if result:
-        logger.info(f"✅ Message sent successfully: {result}")
+        logger.info(f"✅ Message sent successfully: message_id={result}")
     else:
-        logger.error(f"❌ Failed to send message")
+        logger.error(f"❌ Failed to send message - vk_api_call returned None")
+        logger.error(f"💡 Check VK_TOKEN permissions and user message settings")
     
     return result
-
 
 def vk_send_file(user_id, file_url, caption, buttons=None):
     logger.info(f"📤 vk_send_file called for user_id={user_id}")
