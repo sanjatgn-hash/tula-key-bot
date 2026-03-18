@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Tula Key Bot — FINAL FIXED VERSION
+# Tula Key Bot — ENGAGING VERSION v2.0
 
 import os
 import json
@@ -26,6 +26,7 @@ GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON", "")
 
 logger.info(f"VK_TOKEN: {'OK' if VK_TOKEN else 'MISSING'}")
 logger.info(f"VK_GROUP_ID: {'OK' if VK_GROUP_ID else 'MISSING'}")
+logger.info(f"VK_ADMIN_ID: {'OK' if VK_ADMIN_ID else 'MISSING'}")
 
 
 # ==================== VK API ====================
@@ -45,18 +46,15 @@ def vk_api_call(method, params):
 
 
 def vk_get_user_name(user_id):
-    """Получаем имя пользователя из VK API"""
     try:
         params = {"user_ids": user_id, "fields": "first_name"}
         result = vk_api_call("users.get", params)
         if result and len(result) > 0:
-            name = result[0].get("first_name", "Пользователь")
-            logger.info(f"Got user name: {name}")
-            return name
-        return "Пользователь"
+            return result[0].get("first_name", "друг")
+        return "друг"
     except Exception as e:
         logger.error(f"Failed to get user name: {e}")
-        return "Пользователь"
+        return "друг"
 
 
 def get_random_id():
@@ -76,6 +74,16 @@ def get_button(label, payload='', color='primary'):
     }
 
 
+def get_link_button(label, url):
+    return {
+        'action': {
+            'type': 'open_link',
+            'link': url
+        },
+        'label': label
+    }
+
+
 def create_keyboard(one_time=False, buttons=None):
     if buttons is None:
         buttons = []
@@ -84,59 +92,80 @@ def create_keyboard(one_time=False, buttons=None):
 
 
 def main_menu_keyboard():
+    """Главное меню — ПРОДАЮЩЕЕ"""
     buttons = [
-        [get_button('🔍 Подобрать квартиру', {'cmd': 'buy'}, 'primary')],
-        [get_button('💰 Продать', {'cmd': 'sell'}, 'primary')],
-        [get_button('📊 Инвестиции', {'cmd': 'invest'}, 'primary')],
-        [get_button('💬 Помощь', {'cmd': 'help'}, 'secondary')]
+        [get_button('🏠 Подобрать квартиру', {'cmd': 'buy'}, 'primary')],
+        [get_button('💰 Продать квартиру', {'cmd': 'sell'}, 'primary')],
+        [get_button('📥 Получить чек-лист', {'cmd': 'checklist'}, 'secondary')],
+        [get_button('📊 Инвестиции', {'cmd': 'invest'}, 'secondary')],
+        [get_button('💬 Помощь и вопросы', {'cmd': 'help'}, 'secondary')],
+        [get_link_button('📢 Наш канал', VK_GROUP_LINK, )]
     ]
     return create_keyboard(one_time=False, buttons=buttons)
 
 
 def budget_keyboard():
     buttons = [
-        [get_button('до 3 млн', {'cmd': 'budget', 'val': 'до 3 млн'}, 'primary')],
+        [get_button('до 2 млн', {'cmd': 'budget', 'val': 'до 2 млн'}, 'secondary')],
+        [get_button('2-3 млн', {'cmd': 'budget', 'val': '2-3 млн'}, 'primary')],
         [get_button('3-5 млн', {'cmd': 'budget', 'val': '3-5 млн'}, 'primary')],
         [get_button('5+ млн', {'cmd': 'budget', 'val': '5+ млн'}, 'primary')],
-        [get_button('Нужна помощь', {'cmd': 'budget', 'val': 'help'}, 'secondary')]
+        [get_button('Нужна консультация', {'cmd': 'budget', 'val': 'Консультация'}, 'secondary')]
     ]
     return create_keyboard(one_time=False, buttons=buttons)
 
 
 def deadline_keyboard():
     buttons = [
-        [get_button('🔥 Срочно', {'cmd': 'deadline', 'val': 'Срочно'}, 'primary')],
+        [get_button('🔥 Срочно (до недели)', {'cmd': 'deadline', 'val': 'Срочно'}, 'primary')],
         [get_button('📅 1-3 месяца', {'cmd': 'deadline', 'val': '1-3 месяца'}, 'primary')],
-        [get_button('👀 Присматриваюсь', {'cmd': 'deadline', 'val': 'Присматриваюсь'}, 'secondary')]
+        [get_button('📅 3-6 месяцев', {'cmd': 'deadline', 'val': '3-6 месяцев'}, 'secondary')],
+        [get_button('👀 Просто смотрю', {'cmd': 'deadline', 'val': 'Присматриваюсь'}, 'secondary')]
     ]
     return create_keyboard(one_time=False, buttons=buttons)
 
 
 def property_type_keyboard():
     buttons = [
-        [get_button('Квартира', {'cmd': 'prop_type', 'val': 'Квартира'}, 'primary')],
-        [get_button('Дом', {'cmd': 'prop_type', 'val': 'Дом'}, 'primary')],
-        [get_button('Комната', {'cmd': 'prop_type', 'val': 'Комната'}, 'primary')],
-        [get_button('Другое', {'cmd': 'prop_type', 'val': 'Другое'}, 'secondary')]
+        [get_button('🏢 Квартира', {'cmd': 'prop_type', 'val': 'Квартира'}, 'primary')],
+        [get_button('🏡 Дом / Коттедж', {'cmd': 'prop_type', 'val': 'Дом'}, 'primary')],
+        [get_button('🚪 Комната', {'cmd': 'prop_type', 'val': 'Комната'}, 'secondary')],
+        [get_button('🏗️ Другое', {'cmd': 'prop_type', 'val': 'Другое'}, 'secondary')]
     ]
     return create_keyboard(one_time=False, buttons=buttons)
 
 
 def district_keyboard():
+    """Все районы Тулы"""
     buttons = [
-        [get_button('Центральный', {'cmd': 'district', 'val': 'Центральный'}, 'primary')],
-        [get_button('Заречье', {'cmd': 'district', 'val': 'Заречье'}, 'primary')],
-        [get_button('Пролетарский', {'cmd': 'district', 'val': 'Пролетарский'}, 'primary')],
-        [get_button('Любой', {'cmd': 'district', 'val': 'Любой'}, 'secondary')]
+        [get_button('🏛️ Центральный', {'cmd': 'district', 'val': 'Центральный'}, 'primary')],
+        [get_button('🌳 Зареченский', {'cmd': 'district', 'val': 'Зареченский'}, 'primary')],
+        [get_button('🏭 Пролетарский', {'cmd': 'district', 'val': 'Пролетарский'}, 'primary')],
+        [get_button('🚉 Привокзальный', {'cmd': 'district', 'val': 'Привокзальный'}, 'secondary')],
+        [get_button('🏘️ Советский', {'cmd': 'district', 'val': 'Советский'}, 'secondary')],
+        [get_button('📍 Любой район', {'cmd': 'district', 'val': 'Любой'}, 'secondary')],
+        [get_button('🌾 Тульская область', {'cmd': 'district', 'val': 'Область'}, 'secondary')]
+    ]
+    return create_keyboard(one_time=False, buttons=buttons)
+
+
+def invest_goal_keyboard():
+    """Цель инвестиций"""
+    buttons = [
+        [get_button('💵 Перепродажа (флиппинг)', {'cmd': 'invest_goal', 'val': 'Перепродажа'}, 'primary')],
+        [get_button('🏠 Сдача в аренду', {'cmd': 'invest_goal', 'val': 'Аренда'}, 'primary')],
+        [get_button('📈 Долгосрочные вложения', {'cmd': 'invest_goal', 'val': 'Долгосрок'}, 'secondary')],
+        [get_button('❓ Нужна консультация', {'cmd': 'invest_goal', 'val': 'Консультация'}, 'secondary')]
     ]
     return create_keyboard(one_time=False, buttons=buttons)
 
 
 def invest_budget_keyboard():
     buttons = [
-        [get_button('до 2 млн', {'cmd': 'invest_budget', 'val': 'до 2 млн'}, 'primary')],
+        [get_button('до 2 млн', {'cmd': 'invest_budget', 'val': 'до 2 млн'}, 'secondary')],
         [get_button('2-5 млн', {'cmd': 'invest_budget', 'val': '2-5 млн'}, 'primary')],
-        [get_button('5+ млн', {'cmd': 'invest_budget', 'val': '5+ млн'}, 'secondary')]
+        [get_button('5-10 млн', {'cmd': 'invest_budget', 'val': '5-10 млн'}, 'primary')],
+        [get_button('10+ млн', {'cmd': 'invest_budget', 'val': '10+ млн'}, 'primary')]
     ]
     return create_keyboard(one_time=False, buttons=buttons)
 
@@ -146,6 +175,37 @@ def phone_keyboard():
         [get_button('🔙 В главное меню', {'cmd': 'menu'}, 'secondary')]
     ]
     return create_keyboard(one_time=True, buttons=buttons)
+
+
+def contact_keyboard():
+    """Кнопка связи с админом"""
+    buttons = [
+        [get_link_button('✍️ Написать мне лично', f'https://vk.com/im?sel={VK_ADMIN_ID}')],
+        [get_button('🔙 В меню', {'cmd': 'menu'}, 'secondary')]
+    ]
+    return create_keyboard(one_time=True, buttons=buttons)
+
+
+def help_keyboard():
+    buttons = [
+        [get_button('❓ Как работает бот?', {'cmd': 'faq_bot'}, 'secondary')],
+        [get_button('💰 Условия работы', {'cmd': 'faq_conditions'}, 'secondary')],
+        [get_button('🏠 Как подобрать квартиру?', {'cmd': 'faq_buy'}, 'secondary')],
+        [get_button('💰 Как продать?', {'cmd': 'faq_sell'}, 'secondary')],
+        [get_button('✍️ Связаться со мной', {'cmd': 'contact'}, 'primary')],
+        [get_button('🔙 В главное меню', {'cmd': 'menu'}, 'secondary')]
+    ]
+    return create_keyboard(one_time=False, buttons=buttons)
+
+
+def checklist_keyboard():
+    buttons = [
+        [get_link_button('📥 Скачать чек-лист', CHECKLIST_URL or VK_GROUP_LINK)],
+        [get_button('🏠 Подобрать квартиру', {'cmd': 'buy'}, 'primary')],
+        [get_button('📢 Подписаться на канал', VK_GROUP_LINK, ), get_link_button('📢 Канал', VK_GROUP_LINK)],
+        [get_button('🔙 В меню', {'cmd': 'menu'}, 'secondary')]
+    ]
+    return create_keyboard(one_time=False, buttons=buttons)
 
 
 def vk_send_message(user_id, text, keyboard=None):
@@ -204,7 +264,7 @@ def get_sheet():
         sheet = client.open_by_key(GOOGLE_SHEET_ID).sheet1
         first_row = sheet.row_values(1)
         if not first_row or first_row[0] != 'chat_id':
-            sheet.append_row(['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_budget', 'phone', 'updated_at', 'status'])
+            sheet.append_row(['chat_id', 'name', 'username', 'goal', 'budget', 'deadline', 'prop_type', 'district', 'invest_goal', 'invest_budget', 'phone', 'updated_at', 'status'])
             logger.info("Created Google Sheets headers")
         return sheet
     except Exception as e:
@@ -223,7 +283,7 @@ def save_user_state(chat_id, name, data):
         
         for i, row in enumerate(rows[1:], 2):
             if row and len(row) > 0 and str(row[0]) == str(chat_id):
-                status = row[11] if len(row) > 11 else ''
+                status = row[12] if len(row) > 12 else ''
                 if status == 'new':
                     row_idx = i
                     existing_data = {
@@ -232,7 +292,8 @@ def save_user_state(chat_id, name, data):
                         'deadline': row[5] if len(row) > 5 else '',
                         'prop_type': row[6] if len(row) > 6 else '',
                         'district': row[7] if len(row) > 7 else '',
-                        'invest_budget': row[8] if len(row) > 8 else '',
+                        'invest_goal': row[8] if len(row) > 8 else '',
+                        'invest_budget': row[9] if len(row) > 9 else '',
                     }
                     break
         
@@ -241,16 +302,17 @@ def save_user_state(chat_id, name, data):
             str(chat_id), name or '', '',
             merged.get('goal', ''), merged.get('budget', ''),
             merged.get('deadline', ''), merged.get('prop_type', ''),
-            merged.get('district', ''), merged.get('invest_budget', ''),
-            merged.get('phone', ''), datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'new'
+            merged.get('district', ''), merged.get('invest_goal', ''),
+            merged.get('invest_budget', ''), merged.get('phone', ''),
+            datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'new'
         ]
         
         if row_idx:
-            sheet.update(f'A{row_idx}:L{row_idx}', [row_data])
-            logger.info(f"Updated row {row_idx} with: {merged}")
+            sheet.update(f'A{row_idx}:M{row_idx}', [row_data])
+            logger.info(f"Updated row {row_idx}")
         else:
             sheet.append_row(row_data)
-            logger.info(f"Created new row for {chat_id} with: {merged}")
+            logger.info(f"Created new row for {chat_id}")
         
         return True
     except Exception as e:
@@ -265,12 +327,11 @@ def get_user_state(chat_id):
     if not sheet:
         return None
     try:
-        rows = sheet.get_all_values()
-        for row in rows[1:]:
+        for row in sheet.get_all_values()[1:]:
             if row and len(row) > 0 and str(row[0]) == str(chat_id):
-                status = row[11] if len(row) > 11 else ''
+                status = row[12] if len(row) > 12 else ''
                 if status == 'new':
-                    state = {
+                    return {
                         'chat_id': row[0],
                         'name': row[1],
                         'goal': row[3] if len(row) > 3 else '',
@@ -278,13 +339,11 @@ def get_user_state(chat_id):
                         'deadline': row[5] if len(row) > 5 else '',
                         'prop_type': row[6] if len(row) > 6 else '',
                         'district': row[7] if len(row) > 7 else '',
-                        'invest_budget': row[8] if len(row) > 8 else '',
-                        'phone': row[9] if len(row) > 9 else '',
+                        'invest_goal': row[8] if len(row) > 8 else '',
+                        'invest_budget': row[9] if len(row) > 9 else '',
+                        'phone': row[10] if len(row) > 10 else '',
                         'status': status,
                     }
-                    logger.info(f"Got state for {chat_id}: {state}")
-                    return state
-        logger.info(f"No state found for {chat_id}")
         return None
     except Exception as e:
         logger.error(f"Get state error: {e}")
@@ -299,10 +358,10 @@ def mark_lead_sent(chat_id):
         rows = sheet.get_all_values()
         for i, row in enumerate(rows[1:], 2):
             if row and len(row) > 0 and str(row[0]) == str(chat_id):
-                status = row[11] if len(row) > 11 else ''
+                status = row[12] if len(row) > 12 else ''
                 if status == 'new':
-                    sheet.update_cell(i, 12, 'sent')
-                    sheet.update_cell(i, 11, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                    sheet.update_cell(i, 13, 'sent')
+                    sheet.update_cell(i, 12, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
                     logger.info(f"Marked {chat_id} as sent")
                     return True
         return False
@@ -321,12 +380,16 @@ def send_lead_to_admin(name, phone, user_id, state):
             lines.append(f"💰 Бюджет: {state['budget']}")
         if state.get('deadline'):
             lines.append(f"⏰ Срок: {state['deadline']}")
+        if state.get('district'):
+            lines.append(f"📍 Район: {state['district']}")
     elif goal == 'sell':
         if state.get('prop_type'):
             lines.append(f"🏠 Тип: {state['prop_type']}")
         if state.get('district'):
             lines.append(f"📍 Район: {state['district']}")
     elif goal == 'invest':
+        if state.get('invest_goal'):
+            lines.append(f"🎯 Цель: {state['invest_goal']}")
         if state.get('invest_budget'):
             lines.append(f"💵 Бюджет: {state['invest_budget']}")
     
@@ -340,29 +403,135 @@ def send_lead_to_admin(name, phone, user_id, state):
 # ==================== HANDLERS ====================
 
 def handle_start(user_id, name):
-    # Очищаем состояние при новом старте
+    # Очищаем состояние
     save_user_state(user_id, name, {
         'goal': '', 'budget': '', 'deadline': '',
-        'prop_type': '', 'district': '', 'invest_budget': '', 'phone': ''
+        'prop_type': '', 'district': '', 
+        'invest_goal': '', 'invest_budget': '', 'phone': ''
     })
     
-    text = f"""🔑 Привет, {name}! Я — помощник «Тульского ключа»
+    text = f"""✨ {name}, добро пожаловать в «Тульский ключ»!
 
-🎁 Чек-лист: {CHECKLIST_URL or 'после консультации'}
+Я здесь, чтобы исполнить ваше желание по недвижимости — без стресса, обмана и переплат.
 
-Выберите действие:"""
+🎁 **Ваш приветственный бонус:**
+Чек-лист «7 фатальных ошибок при покупке квартиры» — скачайте бесплатно!
+
+🏠 **Что я умею:**
+• Подобрать квартиру под ваш бюджет
+• Помочь выгодно продать недвижимость
+• Подобрать объект для инвестиций
+• Ответить на любые вопросы
+
+Выберите, что вас интересует 👇"""
+    
     vk_send_message(user_id, text, main_menu_keyboard())
+
+
+def handle_checklist(user_id, name):
+    text = f"""🎉 {name}, ваш чек-лист готов!
+
+📄 **«7 фатальных ошибок при покупке квартиры»**
+
+Этот чек-лист уже сэкономил моим клиентам более 2 млн рублей на неудачных сделках.
+
+⚠️ **Внимание:** информация в чек-листе актуальна для рынка Тулы 2026 года.
+
+👇 **Скачивайте по кнопке ниже!**
+
+💡 **Кстати:** пока изучаете чек-лист, могу подобрать для вас 3-5 квартир по вашим критериям — бесплатно!"""
+    
+    vk_send_message(user_id, text, checklist_keyboard())
+
+
+def handle_help(user_id, name):
+    text = f"""💬 {name}, я с радостью помогу!
+
+**Частые вопросы:**
+
+❓ **Как работает бот?**
+Просто отвечайте на вопросы — я подберу варианты под ваши критерии.
+
+❓ **Условия работы?**
+Комиссия 2-3% только после успешной сделки. Никаких предоплат.
+
+❓ **Как подобрать квартиру?**
+Нажмите «Подобрать квартиру» → укажите бюджет → выберите район → оставьте телефон.
+
+❓ **Как продать?**
+Нажмите «Продать квартиру» → укажите тип → район → телефон. Я оценю и найду покупателя.
+
+❓ **Можно ли задать личный вопрос?**
+Конечно! Кнопка «Связаться со мной» ниже 👇
+
+Выберите тему или напишите свой вопрос 👇"""
+    
+    vk_send_message(user_id, text, help_keyboard())
+
+
+def handle_faq(user_id, name, topic):
+    faqs = {
+        'faq_bot': """🤖 **Как работает бот?**
+
+1. Выберите цель (купить/продать/инвест)
+2. Ответьте на 3-4 вопроса
+3. Оставьте телефон
+4. Я свяжусь в течение 2 часов
+
+Это бесплатно и ни к чему не обязывает! 🎁""",
+        
+        'faq_conditions': """💰 **Условия работы:**
+
+• Комиссия: 2-3% от стоимости
+• Оплата: только после сделки
+• Сопровождение: полное (юрист, банк, МФЦ)
+• Гарантия: юридическая чистота
+
+Никаких скрытых платежей! ✅""",
+        
+        'faq_buy': """🏠 **Как подобрать квартиру:**
+
+1. Определяем бюджет
+2. Выбираем район
+3. Учитываем пожелания (этаж, площадь, ремонт)
+4. Показываю 3-5 лучших вариантов
+5. Помогаю с торгом и оформлением
+
+Средний срок подбора: 7-14 дней ⏱️""",
+        
+        'faq_sell': """💰 **Как продать квартиру:**
+
+1. Бесплатная оценка объекта
+2. Профессиональные фото
+3. Размещение на всех площадках
+4. Показы потенциальным покупателям
+5. Сопровождение сделки
+
+Средний срок продажи: 2-4 недели 📅"""
+    }
+    
+    text = faqs.get(topic, "Вопрос не найден. Нажмите «Связаться со мной» для личного вопроса.")
+    vk_send_message(user_id, text, help_keyboard())
+
+
+def handle_contact(user_id, name):
+    text = f"""✍️ {name}, я на связи!
+
+Нажмите кнопку ниже — откроется диалог со мной в личных сообщениях.
+
+Отвечаю в течение 2 часов (в рабочее время 9:00-20:00) 🕐"""
+    
+    vk_send_message(user_id, text, contact_keyboard())
 
 
 def handle_message(user_id, name, text):
     cmd = text.strip().lower()
     
-    # ✅ ПОЛУЧАЕМ ИМЯ ИЗ VK API ЕСЛИ НЕ ПЕРЕДАНО
+    # Получаем имя из VK API если не передано
     if not name or name == "Пользователь":
         name = vk_get_user_name(user_id)
         logger.info(f"Resolved name: {name}")
     
-    # ✅ ПОЛУЧАЕМ СОСТОЯНИЕ
     state = get_user_state(user_id)
     
     logger.info(f"=== MESSAGE START ===")
@@ -370,198 +539,381 @@ def handle_message(user_id, name, text):
     logger.info(f"Current state: {state}")
     
     # ============================================
-    # ✅ 1. ПРОВЕРЯЕМ КНОПКИ ГЛАВНОГО МЕНЮ (ВСЕГДА!)
+    # ✅ 1. КНОПКИ ГЛАВНОГО МЕНЮ
     # ============================================
     
-    if cmd in ["начать", "старт", "/start", "меню", "🔙 в главное меню"]:
+    if cmd in ["начать", "старт", "/start", "меню", "🔙 в главное меню", "🔙 в меню"]:
         handle_start(user_id, name)
         return
     
-    if cmd in ["купить", "подобрать квартиру", "🔍 подобрать квартиру"]:
+    if cmd in ["купить", "подобрать квартиру", "🏠 подобрать квартиру"]:
         save_user_state(user_id, name, {'goal': 'buy'})
-        vk_send_message(user_id, f"{name}, понял! 🔑\n\n1️⃣ Ваш бюджет?", budget_keyboard())
+        text = f"""✨ Отлично, {name}! Помогу найти квартиру мечты в Туле!
+
+🏠 **Подбор квартиры — это просто:**
+1. Указываем бюджет
+2. Выбираем район
+3. Оставляем телефон
+
+Начнём? 👇
+
+💡 *Пока вы выбираете, я уже ищу лучшие варианты!*"""
+        vk_send_message(user_id, text, budget_keyboard())
         return
     
-    if cmd in ["продать", "💰 продать"]:
+    if cmd in ["продать", "продать квартиру", "💰 продать квартиру"]:
         save_user_state(user_id, name, {'goal': 'sell'})
-        vk_send_message(user_id, f"{name}, помогу продать! 🏡\n\n1️⃣ Тип объекта?", property_type_keyboard())
+        text = f"""💰 {name}, помогу продать вашу недвижимость выгодно!
+
+🏠 **Продажа с «Тульский ключ»:**
+• Бесплатная оценка
+• Профессиональные фото
+• Покупатели уже ждут
+
+Что продаём? 👇"""
+        vk_send_message(user_id, text, property_type_keyboard())
+        return
+    
+    if cmd in ["чек-лист", "получить чек-лист", "📥 получить чек-лист"]:
+        handle_checklist(user_id, name)
         return
     
     if cmd in ["инвест", "инвестиции", "📊 инвестиции"]:
         save_user_state(user_id, name, {'goal': 'invest'})
-        vk_send_message(user_id, "📊 Инвестиции:\n\nВаш бюджет?", invest_budget_keyboard())
+        text = f"""📊 {name}, инвестиции в недвижимость — это надёжно!
+
+💡 **Цель инвестиций?**
+
+• **Перепродажа** — купил дешевле, продал дороже (6-12 месяцев)
+• **Аренда** — пассивный доход ежемесячно
+• **Долгосрок** — сохранение капитала на годы
+
+Что вас интересует? 👇"""
+        vk_send_message(user_id, text, invest_goal_keyboard())
         return
     
-    if cmd in ["помощь", "💬 помощь"]:
-        vk_send_message(user_id, """💬 Частые вопросы:
+    if cmd in ["помощь", "помощь и вопросы", "💬 помощь и вопросы"]:
+        handle_help(user_id, name)
+        return
+    
+    if cmd in ["канал", "наш канал", "📢 наш канал", "подписаться"]:
+        text = f"""📢 {name}, рад что хотите быть в курсе!
 
-❓ Комиссия? → 2-3%
-❓ Ипотека? → Да
-❓ Проверка? → Юридическая чистота""", main_menu_keyboard())
+В нашем канале:
+• Горячие предложения (эксклюзивы)
+• Изменения рынка Тулы
+• Советы по недвижимости
+• Акции и скидки
+
+Подписывайтесь 👇"""
+        vk_send_message(user_id, text, main_menu_keyboard())
+        return
+    
+    # FAQ кнопки
+    if cmd in ["faq_bot", "❓ как работает бот?", "как работает бот"]:
+        handle_faq(user_id, name, 'faq_bot')
+        return
+    if cmd in ["faq_conditions", "💰 условия работы", "условия работы"]:
+        handle_faq(user_id, name, 'faq_conditions')
+        return
+    if cmd in ["faq_buy", "🏠 как подобрать квартиру?", "как подобрать квартиру"]:
+        handle_faq(user_id, name, 'faq_buy')
+        return
+    if cmd in ["faq_sell", "💰 как продать?", "как продать"]:
+        handle_faq(user_id, name, 'faq_sell')
+        return
+    if cmd in ["contact", "связаться со мной", "✍️ связаться со мной", "написать мне лично"]:
+        handle_contact(user_id, name)
         return
     
     # ============================================
-    # ✅ 2. ТЕПЕРЬ ПРОВЕРЯЕМ СЦЕНАРИИ
-    
-    # 🔹 ПОКУПКА
+    # ✅ 2. СЦЕНАРИЙ ПОКУПКИ
+    # ============================================
     if state and state.get('goal') == 'buy':
         logger.info("In BUY scenario")
         
-        # Если уже есть телефон — завершённая заявка
         if state.get('phone'):
-            logger.info("Buy scenario completed, showing menu")
             vk_send_message(user_id, f"👋 {name}, выберите действие:", main_menu_keyboard())
             return
         
-        # Шаг 1: Нет бюджета
         if not state.get('budget'):
             logger.info("Step 1: No budget")
             budget = extract_budget(text)
             if budget:
                 save_user_state(user_id, name, {'budget': budget})
-                vk_send_message(user_id, f"✅ Бюджет: {budget}₽\n\n2️⃣ Когда планируете?", deadline_keyboard())
+                text = f"""✅ Бюджет {budget}₽ — отлично!
+
+📍 **Теперь выберите район:**
+
+• Центральный — жизнь в центре событий
+• Зареченский — тихо, зелёно, семейно
+• Пролетарский — развитая инфраструктура
+• Привокзальный — удобная транспортная доступность
+• Советский — новый район, современно
+
+Или «Любой район» если открыты к вариантам 👇"""
+                vk_send_message(user_id, text, district_keyboard())
                 return
             else:
-                vk_send_message(user_id, f"{name}, напишите бюджет (например: 5000000 или 5 млн)", budget_keyboard())
+                vk_send_message(user_id, f"{name}, напишите бюджет (например: 3000000 или 3 млн)\n\n💡 *Средний бюджет для 1-к в Туле: 2.5-3 млн ₽*", budget_keyboard())
                 return
         
-        # Шаг 2: Есть бюджет, нет срока
-        if state.get('budget') and not state.get('deadline'):
-            logger.info("Step 2: Have budget, need deadline")
+        if state.get('budget') and not state.get('district'):
+            logger.info("Step 2: Need district")
+            if 'центр' in cmd:
+                save_user_state(user_id, name, {'district': 'Центральный'})
+            elif 'зареч' in cmd:
+                save_user_state(user_id, name, {'district': 'Зареченский'})
+            elif 'пролетар' in cmd:
+                save_user_state(user_id, name, {'district': 'Пролетарский'})
+            elif 'привокзал' in cmd:
+                save_user_state(user_id, name, {'district': 'Привокзальный'})
+            elif 'совет' in cmd:
+                save_user_state(user_id, name, {'district': 'Советский'})
+            elif 'любой' in cmd:
+                save_user_state(user_id, name, {'district': 'Любой'})
+            elif 'област' in cmd:
+                save_user_state(user_id, name, {'district': 'Область'})
+            else:
+                vk_send_message(user_id, f"{name}, выберите район из кнопок 👇", district_keyboard())
+                return
+            
+            text = f"""✅ {state.get('district')} — отличный выбор!
+
+⏰ **Когда планируете сделку?**
+
+🔥 Срочно — уже на этой неделе
+📅 1-3 месяца — есть время на подбор
+📅 3-6 месяцев — спокойно выбираем
+👀 Просто смотрю — изучаю рынок
+
+💡 *Чем точнее срок — тем лучше подберу варианты!*"""
+            vk_send_message(user_id, text, deadline_keyboard())
+            return
+        
+        if state.get('budget') and state.get('district') and not state.get('deadline'):
+            logger.info("Step 3: Need deadline")
             if 'срочно' in cmd or 'неделю' in cmd:
                 save_user_state(user_id, name, {'deadline': 'Срочно'})
-                vk_send_message(user_id, "🔥 Отлично!\n\n📞 Напишите телефон:", phone_keyboard())
-                return
-            if 'месяц' in cmd:
+            elif '1-3' in cmd or 'месяц' in cmd:
                 save_user_state(user_id, name, {'deadline': '1-3 месяца'})
-                vk_send_message(user_id, "📅 Принято!\n\n📞 Напишите телефон:", phone_keyboard())
-                return
-            if 'смотр' in cmd or 'присматриваюсь' in cmd:
+            elif '3-6' in cmd:
+                save_user_state(user_id, name, {'deadline': '3-6 месяцев'})
+            elif 'смотр' in cmd or 'присматриваюсь' in cmd:
                 save_user_state(user_id, name, {'deadline': 'Присматриваюсь'})
-                vk_send_message(user_id, "👌 Понял!\n\n📞 Напишите телефон:", phone_keyboard())
-                return
             else:
-                vk_send_message(user_id, "Напишите: срочно, месяц или смотрю", deadline_keyboard())
+                vk_send_message(user_id, "Выберите срок из кнопок 👇", deadline_keyboard())
                 return
+            
+            text = f"""🎉 Почти готово, {name}!
+
+📞 **Оставьте телефон** — я свяжусь в течение 2 часов и:
+• Подберу 3-5 квартир под ваш запрос
+• Организую просмотры в удобное время
+• Помогу с торгом и оформлением
+
+🔒 *Телефон не передаётся третьим лицам*"""
+            vk_send_message(user_id, text, phone_keyboard())
+            return
         
-        # Шаг 3: Есть бюджет и срок, ждём телефон
-        if state.get('budget') and state.get('deadline') and not state.get('phone'):
-            logger.info("Step 3: Have budget+deadline, need phone")
+        if state.get('budget') and state.get('district') and state.get('deadline') and not state.get('phone'):
+            logger.info("Step 4: Need phone")
             phone, valid = normalize_phone(text)
             if valid:
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                vk_send_message(user_id, f"✅ Спасибо, {name}! 🙏\n\nТелефон: {phone}\nСвяжусь в течение 2 часов!", main_menu_keyboard())
+                text = f"""🎉 {name}, спасибо! Вы сделали первый шаг к квартире мечты!
+
+✅ **Что дальше:**
+1. Я изучу ваш запрос (15 минут)
+2. Подберу 3-5 лучших вариантов
+3. Свяжусь с вами в течение 2 часов
+4. Договоримся о просмотрах
+
+📞 Телефон: {phone}
+
+🎁 **Бонус:** пока жду звонка, загляните в наш канал — там эксклюзивные предложения!"""
+                vk_send_message(user_id, text, main_menu_keyboard())
                 return
             else:
-                vk_send_message(user_id, f"⚠️ {name}, это не телефон. Попробуйте ещё раз:\n+7 999 123-45-67", phone_keyboard())
+                vk_send_message(user_id, f"⚠️ {name}, это не похоже на телефон.\n\nПопробуйте ещё раз:\n+7 999 123-45-67", phone_keyboard())
                 return
     
-    # 🔹 ПРОДАЖА
+    # ============================================
+    # ✅ 3. СЦЕНАРИЙ ПРОДАЖИ
+    # ============================================
     if state and state.get('goal') == 'sell':
         logger.info("In SELL scenario")
         
         if state.get('phone'):
-            logger.info("Sell scenario completed, showing menu")
             vk_send_message(user_id, f"👋 {name}, выберите действие:", main_menu_keyboard())
             return
         
-        # Шаг 1: Нет типа
         if not state.get('prop_type'):
             logger.info("Step 1: No prop_type")
             if 'квартира' in cmd:
                 save_user_state(user_id, name, {'prop_type': 'Квартира'})
-                vk_send_message(user_id, "✅ Квартира\n\n2️⃣ Район?", district_keyboard())
-                return
-            if 'дом' in cmd:
+            elif 'дом' in cmd or 'коттедж' in cmd:
                 save_user_state(user_id, name, {'prop_type': 'Дом'})
-                vk_send_message(user_id, "✅ Дом\n\n2️⃣ Район?", district_keyboard())
-                return
-            if 'комната' in cmd:
+            elif 'комната' in cmd:
                 save_user_state(user_id, name, {'prop_type': 'Комната'})
-                vk_send_message(user_id, "✅ Комната\n\n2️⃣ Район?", district_keyboard())
-                return
-            if 'другое' in cmd:
+            elif 'другое' in cmd:
                 save_user_state(user_id, name, {'prop_type': 'Другое'})
-                vk_send_message(user_id, "✅ Другое\n\n2️⃣ Район?", district_keyboard())
-                return
             else:
-                vk_send_message(user_id, f"{name}, напишите: квартира, дом, комната или другое", property_type_keyboard())
+                vk_send_message(user_id, f"{name}, выберите тип недвижимости 👇", property_type_keyboard())
                 return
+            
+            text = f"""✅ {state.get('prop_type')} — понял!
+
+📍 **В каком районе находится объект?**
+
+Это поможет мне оценить стоимость и найти покупателей 👇"""
+            vk_send_message(user_id, text, district_keyboard())
+            return
         
-        # Шаг 2: Есть тип, нет района
         if state.get('prop_type') and not state.get('district'):
-            logger.info("Step 2: Have prop_type, need district")
+            logger.info("Step 2: Need district")
             if 'центр' in cmd:
                 save_user_state(user_id, name, {'district': 'Центральный'})
-                vk_send_message(user_id, "✅ Центр\n\n📞 Напишите телефон:", phone_keyboard())
-                return
-            if 'заречье' in cmd:
-                save_user_state(user_id, name, {'district': 'Заречье'})
-                vk_send_message(user_id, "✅ Заречье\n\n📞 Напишите телефон:", phone_keyboard())
-                return
-            if 'пролетарский' in cmd:
+            elif 'зареч' in cmd:
+                save_user_state(user_id, name, {'district': 'Зареченский'})
+            elif 'пролетар' in cmd:
                 save_user_state(user_id, name, {'district': 'Пролетарский'})
-                vk_send_message(user_id, "✅ Пролетарский\n\n📞 Напишите телефон:", phone_keyboard())
-                return
-            if 'любой' in cmd:
+            elif 'привокзал' in cmd:
+                save_user_state(user_id, name, {'district': 'Привокзальный'})
+            elif 'совет' in cmd:
+                save_user_state(user_id, name, {'district': 'Советский'})
+            elif 'любой' in cmd:
                 save_user_state(user_id, name, {'district': 'Любой'})
-                vk_send_message(user_id, "✅ Любой\n\n📞 Напишите телефон:", phone_keyboard())
-                return
+            elif 'област' in cmd:
+                save_user_state(user_id, name, {'district': 'Область'})
             else:
-                vk_send_message(user_id, "Напишите: центр, заречье, пролетарский или любой", district_keyboard())
+                vk_send_message(user_id, "Выберите район из кнопок 👇", district_keyboard())
                 return
+            
+            text = f"""🎉 Отлично, {name}!
+
+📞 **Оставьте телефон** — я:
+• Бесплатно оценю ваш объект
+• Расскажу о сроках продажи
+• Подготовлю план действий
+
+🔒 *Конфиденциально*"""
+            vk_send_message(user_id, text, phone_keyboard())
+            return
         
-        # Шаг 3: Есть тип и район, ждём телефон
         if state.get('prop_type') and state.get('district') and not state.get('phone'):
-            logger.info("Step 3: Have prop_type+district, need phone")
+            logger.info("Step 3: Need phone")
             phone, valid = normalize_phone(text)
             if valid:
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                vk_send_message(user_id, f"✅ Спасибо, {name}! 🙏\n\nТелефон: {phone}\nСвяжусь в течение 2 часов!", main_menu_keyboard())
+                text = f"""✅ {name}, спасибо!
+
+📊 **Что дальше:**
+1. Изучу ваш объект (30 минут)
+2. Подготовлю оценку рынка
+3. Свяжусь в течение 2 часов
+4. Обсудим стратегию продажи
+
+📞 Телефон: {phone}
+
+💡 *Пока жду звонка, скачайте чек-лист — там советы по предпродажной подготовке!*"""
+                vk_send_message(user_id, text, checklist_keyboard())
                 return
             else:
-                vk_send_message(user_id, f"⚠️ {name}, это не телефон. Попробуйте ещё раз:\n+7 999 123-45-67", phone_keyboard())
+                vk_send_message(user_id, f"⚠️ {name}, это не телефон.\n\nПопробуйте: +7 999 123-45-67", phone_keyboard())
                 return
     
-    # 🔹 ИНВЕСТИЦИИ
+    # ============================================
+    # ✅ 4. СЦЕНАРИЙ ИНВЕСТИЦИЙ
+    # ============================================
     if state and state.get('goal') == 'invest':
         logger.info("In INVEST scenario")
         
         if state.get('phone'):
-            logger.info("Invest scenario completed, showing menu")
             vk_send_message(user_id, f"👋 {name}, выберите действие:", main_menu_keyboard())
             return
         
-        if not state.get('invest_budget'):
-            logger.info("Step 1: No invest_budget")
+        if not state.get('invest_goal'):
+            logger.info("Step 1: No invest_goal")
+            if 'перепродаж' in cmd or 'флиппинг' in cmd:
+                save_user_state(user_id, name, {'invest_goal': 'Перепродажа'})
+            elif 'аренд' in cmd:
+                save_user_state(user_id, name, {'invest_goal': 'Аренда'})
+            elif 'долгосрок' in cmd or 'долгосрочн' in cmd:
+                save_user_state(user_id, name, {'invest_goal': 'Долгосрок'})
+            elif 'консультаци' in cmd:
+                save_user_state(user_id, name, {'invest_goal': 'Консультация'})
+            else:
+                vk_send_message(user_id, "Выберите цель инвестиций 👇", invest_goal_keyboard())
+                return
+            
+            text = f"""✅ {state.get('invest_goal')} — отличный выбор!
+
+💵 **Какой бюджет рассматриваете?**
+
+💡 *Для перепродажи: от 2 млн ₽*\n*Для аренды: от 3 млн ₽*"""
+            vk_send_message(user_id, text, invest_budget_keyboard())
+            return
+        
+        if state.get('invest_goal') and not state.get('invest_budget'):
+            logger.info("Step 2: Need invest_budget")
             budget = extract_budget(text)
             if budget:
                 save_user_state(user_id, name, {'invest_budget': budget})
-                vk_send_message(user_id, f"📈 Бюджет: {budget}₽\n\n💬 Напишите телефон:", phone_keyboard())
-                return
+            elif 'до 2' in cmd:
+                save_user_state(user_id, name, {'invest_budget': 'до 2 млн'})
+            elif '2-5' in cmd:
+                save_user_state(user_id, name, {'invest_budget': '2-5 млн'})
+            elif '5-10' in cmd:
+                save_user_state(user_id, name, {'invest_budget': '5-10 млн'})
+            elif '10+' in cmd:
+                save_user_state(user_id, name, {'invest_budget': '10+ млн'})
             else:
-                vk_send_message(user_id, "Напишите бюджет (например: 2000000 или 2 млн)", invest_budget_keyboard())
+                vk_send_message(user_id, "Выберите бюджет или напишите цифрами 👇", invest_budget_keyboard())
                 return
+            
+            text = f"""🎉 {name}, почти готово!
+
+📞 **Оставьте телефон** — я:
+• Подберу объекты с доходностью 8-12%
+• Рассчитаю ROI для каждого варианта
+• Покажу прогноз роста стоимости
+
+🔒 *Конфиденциально*"""
+            vk_send_message(user_id, text, phone_keyboard())
+            return
         
-        if state.get('invest_budget') and not state.get('phone'):
-            logger.info("Step 2: Have invest_budget, need phone")
+        if state.get('invest_goal') and state.get('invest_budget') and not state.get('phone'):
+            logger.info("Step 3: Need phone")
             phone, valid = normalize_phone(text)
             if valid:
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                vk_send_message(user_id, f"✅ Спасибо, {name}! 🙏\n\nТелефон: {phone}\nСвяжусь в течение 2 часов!", main_menu_keyboard())
+                text = f"""📊 {name}, спасибо за интерес к инвестициям!
+
+✅ **Что дальше:**
+1. Проанализирую рынок (1 час)
+2. Подберу 3-5 объектов с лучшей доходностью
+3. Подготовлю расчёт ROI
+4. Свяжусь в течение 2 часов
+
+📞 Телефон: {phone}
+
+💡 *Инвестиции в недвижимость Тулы: 8-12% годовых*"""
+                vk_send_message(user_id, text, main_menu_keyboard())
                 return
             else:
-                vk_send_message(user_id, f"⚠️ {name}, это не телефон. Попробуйте ещё раз:", phone_keyboard())
+                vk_send_message(user_id, f"⚠️ {name}, это не телефон.\n\nПопробуйте: +7 999 123-45-67", phone_keyboard())
                 return
     
     # ============================================
-    # ✅ 3. НЕИЗВЕСТНАЯ КОМАНДА — показываем меню
+    # ✅ 5. НЕИЗВЕСТНАЯ КОМАНДА
+    # ============================================
     vk_send_message(user_id, f"👋 {name}, выберите действие:", main_menu_keyboard())
     logger.info("=== MESSAGE END ===")
 
@@ -600,7 +952,7 @@ def vk_webhook():
 
 @app.route('/health')
 def health():
-    return "VK Bot OK", 200
+    return "VK Bot OK v2.0", 200
 
 
 if __name__ == '__main__':
