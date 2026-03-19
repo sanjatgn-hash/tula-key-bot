@@ -579,24 +579,29 @@ def handle_message(user_id, name, text):
         handle_help(user_id, name)
         return
     
+   
     # ========================================
-    # ❓ FAQ — НОВЫЕ УНИКАЛЬНЫЕ КОМАНДЫ
+    # ❓ FAQ — ПРОВЕРКИ С ЭМОДЗИ И ?
     # ========================================
-    if cmd in ["faq_buy_info", "как подобрать квартиру", "как купить квартиру", "подобрать квартиру информация"]:
+    # 🏠 Как подобрать квартиру? (кнопка отправляет текст с эмодзи и ?)
+    if cmd in ["🏠 как подобрать квартиру?", "🏠 как подобрать квартиру", 
+               "как подобрать квартиру", "как купить квартиру", "подобрать квартиру информация", "faq_buy_info"]:
         logger.info("📍 FAQ BUY INFO")
         handle_faq(user_id, name, 'faq_buy_info')
         return
-    
-    if cmd in ["faq_sell_info", "как продать недвижимость", "как продать квартиру", "продать информация"]:
+
+    # 💰 Как продать недвижимость? (кнопка отправляет текст с эмодзи и ?)
+    if cmd in ["💰 как продать недвижимость?", "💰 как продать недвижимость",
+               "как продать недвижимость", "как продать квартиру", "продать информация", "faq_sell_info"]:
         logger.info("📍 FAQ SELL INFO")
         handle_faq(user_id, name, 'faq_sell_info')
         return
-    
+
     if cmd in ["faq_bot", "❓ как работает бот", "как работает бот"]:
         logger.info("📍 FAQ BOT")
         handle_faq(user_id, name, 'faq_bot')
         return
-    
+
     if cmd in ["faq_conditions", "🤝 условия работы", "условия"]:
         logger.info("📍 FAQ CONDITIONS")
         handle_faq(user_id, name, 'faq_conditions')
