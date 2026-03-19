@@ -465,7 +465,7 @@ def handle_faq(user_id, name, topic):
 Только ПОСЛЕ успешного перехода права собственности!
 
 📊 **Комиссия:**
-2-3% от стоимости объекта — зависит от сложности.
+2-3% от стоимости объекта — зависит от объекта.
 
 🎯 **Моя цель:**
 Лучший результат с минимальными затратами времени и нервов!
@@ -580,40 +580,29 @@ def handle_message(user_id, name, text):
         return
     
     # ========================================
-    # ✅ FAQ — УНИКАЛЬНЫЕ КОМАНДЫ (ПОСЛЕ СЦЕНАРИЕВ)
+    # ✅ FAQ — ПЕРЕД СЦЕНАРИЯМИ! (ИСПРАВЛЕНО)
     # ========================================
-    if cmd in ["инфо покупка", "как купить", "про подбор", "ℹ️ подробнее о подборе", "как подбирают квартиру"]:
+    if cmd in ["инфо покупка", "как купить", "про подбор", "как подбирают квартиру"]:
         handle_faq(user_id, name, 'faq_buy')
         return
     
-    if cmd in ["инфо продажа", "как продать", "про продажу", "ℹ️ подробнее о продаже", "как продают недвижимость"]:
+    if cmd in ["инфо продажа", "как продать", "про продажу", "как продают недвижимость"]:
         handle_faq(user_id, name, 'faq_sell')
         return
     
-    # Остальные FAQ
     if cmd in ["faq_bot", "❓ как работает бот?", "как работает бот"]:
         handle_faq(user_id, name, 'faq_bot')
         return
+    
     if cmd in ["faq_conditions", "🤝 условия работы", "условия"]:
         handle_faq(user_id, name, 'faq_conditions')
         return
     
     # ========================================
-    # 🏠 ПОКУПКА
+    # 🏠 ПОКУПКА (только если нет завершённого телефона)
     # ========================================
-    if state and state.get('goal') == 'buy':
+    if state and state.get('goal') == 'buy' and not state.get('phone'):
         logger.info(f"🔄 In BUY scenario")
-        
-        if state.get('phone'):
-            vk_send_message(user_id, f"""👋 {name}, вы уже оставили заявку на покупку!
-
-✅ Ваши данные сохранены — я свяжусь с вами.
-
-💡 Что можно сделать:
-• Создать новую заявку
-• Написать мне лично
-• Вернуться в меню""", final_keyboard('buy'))
-            return
         
         if not state.get('budget'):
             logger.info("BUY Step 1: Getting budget")
@@ -665,7 +654,7 @@ def handle_message(user_id, name, text):
 • Телефон: {phone}
 
 📋 **Что дальше:**
-1. Я изучу ваш запрос
+1. Я изучу ваш запрос (15-30 мин)
 2. Подберу лучшие варианты
 3. Свяжусь с вами в ближайшее время
 
@@ -679,19 +668,8 @@ def handle_message(user_id, name, text):
     # ========================================
     # 💰 ПРОДАЖА
     # ========================================
-    if state and state.get('goal') == 'sell':
+    if state and state.get('goal') == 'sell' and not state.get('phone'):
         logger.info(f"🔄 In SELL scenario")
-        
-        if state.get('phone'):
-            vk_send_message(user_id, f"""👋 {name}, вы уже оставили заявку на продажу!
-
-✅ Ваши данные сохранены — я свяжусь с вами.
-
-💡 Что можно сделать:
-• Создать новую заявку
-• Написать мне лично
-• Вернуться в меню""", final_keyboard('sell'))
-            return
         
         if not state.get('prop_type'):
             logger.info("SELL Step 1: Getting prop_type")
@@ -732,7 +710,7 @@ def handle_message(user_id, name, text):
 • Телефон: {phone}
 
 📋 **Что дальше:**
-1. Изучу ваш объект
+1. Изучу ваш объект (30-60 мин)
 2. Подготовлю оценку рынка
 3. Свяжусь в ближайшее время
 
@@ -746,19 +724,8 @@ def handle_message(user_id, name, text):
     # ========================================
     # 📊 ИНВЕСТИЦИИ
     # ========================================
-    if state and state.get('goal') == 'invest':
+    if state and state.get('goal') == 'invest' and not state.get('phone'):
         logger.info(f"🔄 In INVEST scenario")
-        
-        if state.get('phone'):
-            vk_send_message(user_id, f"""👋 {name}, вы уже оставили заявку на инвестиции!
-
-✅ Ваши данные сохранены — я свяжусь с вами.
-
-💡 Что можно сделать:
-• Создать новую заявку
-• Написать мне лично
-• Вернуться в меню""", final_keyboard('invest'))
-            return
         
         if not state.get('invest_goal'):
             logger.info("INVEST Step 1: Getting invest_goal")
@@ -806,7 +773,7 @@ def handle_message(user_id, name, text):
 • Телефон: {phone}
 
 📋 **Что дальше:**
-1. Проанализирую рынок
+1. Проанализирую рынок (1-2 часа)
 2. Подберу объекты с лучшей доходностью
 3. Подготовлю расчёт ROI
 4. Свяжусь в ближайшее время
@@ -817,6 +784,23 @@ def handle_message(user_id, name, text):
                 return
             vk_send_message(user_id, f"⚠️ {name}, это не телефон. Попробуйте: +7 999 123-45-67", phone_keyboard())
             return
+    
+    # ========================================
+    # ❓ ЕСЛИ СЦЕНАРИЙ УЖЕ ЗАВЕРШЁН (есть phone)
+    # ========================================
+    if state and state.get('phone'):
+        goal = state.get('goal', '')
+        goal_name = {'buy': 'покупку', 'sell': 'продажу', 'invest': 'инвестиции'}.get(goal, 'заявку')
+        
+        vk_send_message(user_id, f"""👋 {name}, вы уже оставили заявку на {goal_name}!
+
+✅ Ваши данные сохранены — я свяжусь с вами.
+
+💡 Что можно сделать:
+• Создать новую заявку
+• Написать мне лично
+• Вернуться в меню""", final_keyboard(goal))
+        return
     
     # ========================================
     # ❌ НЕИЗВЕСТНАЯ КОМАНДА
