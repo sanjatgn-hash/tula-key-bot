@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Tula Key Bot — FIXED LINK BUTTONS v2.8
+# Tula Key Bot — CLEAN FINAL KEYBOARD v2.9
 
 import os
 import json
@@ -73,7 +73,6 @@ def get_button(label, payload='', color='primary'):
 
 
 def get_link_button(label, url):
-    # ✅ strip() для удаления пробелов
     clean_url = url.strip()
     return {"action": {"type": "open_link", "link": clean_url, "label": label}}
 
@@ -181,17 +180,18 @@ def help_keyboard():
 
 
 def final_keyboard(goal=''):
-    """✅ ИСПРАВЛЕНО: Убран tel: link, добавлен .strip()"""
+    """✅ УБРАНА кнопка "Позвонить", убрана латиница"""
     admin_link = f'https://vk.com/im?sel={VK_ADMIN_ID}'.strip() if VK_ADMIN_ID else VK_GROUP_LINK
     
+    # ✅ Русские названия для кнопок новой заявки
+    goal_labels = {'buy': 'покупку', 'sell': 'продажу', 'invest': 'инвестиции'}
+    goal_label = goal_labels.get(goal, 'заявку')
+    
     buttons = [
-        # ✅ ТЕКСТОВАЯ КНОПКА вместо tel: (который не работает в VK)
-        [get_button(f'📞 Позвонить: {VK_ADMIN_PHONE}', {'cmd': 'phone_hint'}, 'secondary')],
         [get_link_button('✍️ Написать в ЛС', admin_link)],
+        [get_button(f'🔄 Новая заявка на {goal_label}', {'cmd': f'restart_{goal}'}, 'primary')],
+        [get_button('🔙 В главное меню', {'cmd': 'menu'}, 'secondary')]
     ]
-    if goal:
-        buttons.append([get_button(f'🔄 Новая заявка ({goal})', {'cmd': f'restart_{goal}'}, 'primary')])
-    buttons.append([get_button('🔙 В главное меню', {'cmd': 'menu'}, 'secondary')])
     return create_keyboard(one_time=False, buttons=buttons)
 
 
@@ -481,8 +481,11 @@ def handle_faq(user_id, name, topic):
 • Отбираю 3-5 лучших вариантов
 • Организую просмотры
 • Веду переговоры о цене
+• Проверяю документы собственников
+• Готовлю документы для сделки
+• Поздравляю с успешной сделкой 🤝
 
-⏱️ **Срок:** 7-14 дней в среднем
+⏱️ **Срок:** от 2-ух до 14-ти дней в среднем (индивидуально)
 
 🚀 Хотите начать? Нажмите «Подобрать квартиру» 👇""",
         
@@ -491,10 +494,15 @@ def handle_faq(user_id, name, topic):
 1️⃣ Тип объекта → 2️⃣ Район → 3️⃣ Телефон
 
 📋 **Что я делаю:**
-• Бесплатная оценка рынка
-• Размещение на всех площадках
-• Показы покупателям
-• Полное сопровождение сделки
+• Бесплатный анализ рынка, чтобы быть в курсе актуальной цены
+• Профессиональные фото (по желанию) от нашего фотографа 
+• Размещение на всех площадках (VK, Циан, Авито и другие), чаты риелторов и инвесторов 
+• Организация показов потенциальным покупателям
+• Ведение переговоров и торг за Вас
+• Генерация входящего потока благодаря использованию всех доступных инструментов (Расклейка, платное продвижение и многое другое)
+• Полное сопровождение сделки от Здравствуйте, меня зовут... до Александр, огромное спасибо за сделку, я порекомендую вас своим знакомым
+• Отслеживание статистики
+• Поздравляю с успешной сделкой 🤝
 
 ⏱️ **Срок:** 1-3 месяца в среднем
 
@@ -585,15 +593,6 @@ def handle_message(user_id, name, text):
         handle_faq(user_id, name, 'faq_sell')
         return
     
-    # Обработка текстовой кнопки с номером телефона
-    if cmd == "phone_hint":
-        vk_send_message(user_id, f"""📞 {name}, мой номер: {VK_ADMIN_PHONE}
-
-💡 Нажмите и удерживайте номер, чтобы скопировать, или добавьте в контакты.
-
-Я на связи! 🤝""", final_keyboard(state.get('goal') if state else ''))
-        return
-    
     # ========================================
     # 🏠 ПОКУПКА
     # ========================================
@@ -652,6 +651,7 @@ def handle_message(user_id, name, text):
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
+                # ✅ НОВЫЙ ТЕКСТ: номер телефона прямо в сообщении
                 vk_send_message(user_id, f"""🎉 {name}, заявка принята!
 
 ✅ **Вы указали:**
@@ -661,15 +661,12 @@ def handle_message(user_id, name, text):
 • Телефон: {phone}
 
 📋 **Что дальше:**
-1. Я изучу ваш запрос (15-30 мин)
+1. Я изучу ваш запрос
 2. Подберу лучшие варианты
 3. Свяжусь с вами в ближайшее время
 
-💡 **Можно прямо сейчас:**
-• Позвонить мне (кнопка ниже)
-• Написать в личные сообщения
-• Создать новую заявку
-• Вернуться в меню""", final_keyboard('buy'))
+📞 **Можно позвонить прямо сейчас:** {VK_ADMIN_PHONE}
+✍️ Или напишите в личные сообщения""", final_keyboard('buy'))
                 logger.info("✅ BUY scenario completed with final message")
                 return
             vk_send_message(user_id, f"⚠️ {name}, это не телефон. Попробуйте: +7 999 123-45-67", phone_keyboard())
@@ -723,6 +720,7 @@ def handle_message(user_id, name, text):
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
+                # ✅ НОВЫЙ ТЕКСТ: номер телефона прямо в сообщении
                 vk_send_message(user_id, f"""🎉 {name}, заявка принята!
 
 ✅ **Вы указали:**
@@ -731,15 +729,12 @@ def handle_message(user_id, name, text):
 • Телефон: {phone}
 
 📋 **Что дальше:**
-1. Изучу ваш объект (30-60 мин)
+1. Изучу ваш объект
 2. Подготовлю оценку рынка
 3. Свяжусь в ближайшее время
 
-💡 **Можно прямо сейчас:**
-• Позвонить мне (кнопка ниже)
-• Написать в личные сообщения
-• Создать новую заявку
-• Вернуться в меню""", final_keyboard('sell'))
+📞 **Можно позвонить прямо сейчас:** {VK_ADMIN_PHONE}
+✍️ Или напишите в личные сообщения""", final_keyboard('sell'))
                 logger.info("✅ SELL scenario completed with final message")
                 return
             vk_send_message(user_id, f"⚠️ {name}, это не телефон. Попробуйте: +7 999 123-45-67", phone_keyboard())
@@ -800,6 +795,7 @@ def handle_message(user_id, name, text):
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
+                # ✅ НОВЫЙ ТЕКСТ: номер телефона прямо в сообщении
                 vk_send_message(user_id, f"""🎉 {name}, заявка принята!
 
 ✅ **Вы указали:**
@@ -813,11 +809,8 @@ def handle_message(user_id, name, text):
 3. Подготовлю расчёт ROI
 4. Свяжусь в ближайшее время
 
-💡 **Можно прямо сейчас:**
-• Позвонить мне (кнопка ниже)
-• Написать в личные сообщения
-• Создать новую заявку
-• Вернуться в меню""", final_keyboard('invest'))
+📞 **Можно позвонить прямо сейчас:** {VK_ADMIN_PHONE}
+✍️ Или напишите в личные сообщения""", final_keyboard('invest'))
                 logger.info("✅ INVEST scenario completed with final message")
                 return
             vk_send_message(user_id, f"⚠️ {name}, это не телефон. Попробуйте: +7 999 123-45-67", phone_keyboard())
@@ -863,7 +856,7 @@ def vk_webhook():
 
 @app.route('/health')
 def health():
-    return "VK Bot OK v2.8", 200
+    return "VK Bot OK v2.9", 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000)))
