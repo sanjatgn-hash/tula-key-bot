@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Tula Key Bot — CLEAN FINAL KEYBOARD v2.9
+# Tula Key Bot — FAQ COMMANDS ADDED v3.0
 
 import os
 import json
@@ -168,24 +168,23 @@ def checklist_keyboard():
 
 
 def help_keyboard():
+    """✅ ДОБАВЛЕНЫ: Кнопки для подробной информации о подборе и продаже"""
     admin_link = f'https://vk.com/im?sel={VK_ADMIN_ID}'.strip() if VK_ADMIN_ID else VK_GROUP_LINK
     return create_keyboard(one_time=False, buttons=[
         [get_button('❓ Как работает бот?', {'cmd': 'faq_bot'}, 'secondary')],
         [get_button('🤝 Условия работы', {'cmd': 'faq_conditions'}, 'secondary')],
-        [get_button('🏠 Подобрать квартиру', {'cmd': 'buy'}, 'primary')],
-        [get_button('💰 Продажа объекта', {'cmd': 'sell'}, 'primary')],
+        [get_button('ℹ️ Как подбирают квартиру?', {'cmd': 'инфо покупка'}, 'secondary')],  # ✅ НОВАЯ
+        [get_button('ℹ️ Как продают недвижимость?', {'cmd': 'инфо продажа'}, 'secondary')],  # ✅ НОВАЯ
         [get_link_button('✍️ Написать лично', admin_link)],
         [get_button('🔙 В меню', {'cmd': 'menu'}, 'secondary')]
     ])
 
 
 def final_keyboard(goal=''):
-    """✅ УБРАНА кнопка "Позвонить", убрана латиница"""
-    admin_link = f'https://vk.com/im?sel={VK_ADMIN_ID}'.strip() if VK_ADMIN_ID else VK_GROUP_LINK
-    
-    # ✅ Русские названия для кнопок новой заявки
     goal_labels = {'buy': 'покупку', 'sell': 'продажу', 'invest': 'инвестиции'}
     goal_label = goal_labels.get(goal, 'заявку')
+    
+    admin_link = f'https://vk.com/im?sel={VK_ADMIN_ID}'.strip() if VK_ADMIN_ID else VK_GROUP_LINK
     
     buttons = [
         [get_link_button('✍️ Написать в ЛС', admin_link)],
@@ -440,6 +439,7 @@ def handle_help(user_id, name):
 
 
 def handle_faq(user_id, name, topic):
+    """✅ ДОБАВЛЕНЫ: faq_buy и faq_sell"""
     faqs = {
         'faq_bot': f"""🤖 {name}, я — ваш универсальный помощник по недвижимости в Туле!
 
@@ -579,18 +579,23 @@ def handle_message(user_id, name, text):
         handle_help(user_id, name)
         return
     
-    # FAQ
+    # ========================================
+    # ✅ FAQ — УНИКАЛЬНЫЕ КОМАНДЫ (ПОСЛЕ СЦЕНАРИЕВ)
+    # ========================================
+    if cmd in ["инфо покупка", "как купить", "про подбор", "ℹ️ подробнее о подборе", "как подбирают квартиру"]:
+        handle_faq(user_id, name, 'faq_buy')
+        return
+    
+    if cmd in ["инфо продажа", "как продать", "про продажу", "ℹ️ подробнее о продаже", "как продают недвижимость"]:
+        handle_faq(user_id, name, 'faq_sell')
+        return
+    
+    # Остальные FAQ
     if cmd in ["faq_bot", "❓ как работает бот?", "как работает бот"]:
         handle_faq(user_id, name, 'faq_bot')
         return
     if cmd in ["faq_conditions", "🤝 условия работы", "условия"]:
         handle_faq(user_id, name, 'faq_conditions')
-        return
-    if cmd in ["faq_buy", "🏠 подобрать квартиру", "подобрать квартиру"]:
-        handle_faq(user_id, name, 'faq_buy')
-        return
-    if cmd in ["faq_sell", "💰 продать", "продать"]:
-        handle_faq(user_id, name, 'faq_sell')
         return
     
     # ========================================
@@ -651,7 +656,6 @@ def handle_message(user_id, name, text):
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                # ✅ НОВЫЙ ТЕКСТ: номер телефона прямо в сообщении
                 vk_send_message(user_id, f"""🎉 {name}, заявка принята!
 
 ✅ **Вы указали:**
@@ -661,7 +665,7 @@ def handle_message(user_id, name, text):
 • Телефон: {phone}
 
 📋 **Что дальше:**
-1. Я изучу ваш запрос
+1. Я изучу ваш запрос (15-30 мин)
 2. Подберу лучшие варианты
 3. Свяжусь с вами в ближайшее время
 
@@ -720,7 +724,6 @@ def handle_message(user_id, name, text):
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                # ✅ НОВЫЙ ТЕКСТ: номер телефона прямо в сообщении
                 vk_send_message(user_id, f"""🎉 {name}, заявка принята!
 
 ✅ **Вы указали:**
@@ -729,7 +732,7 @@ def handle_message(user_id, name, text):
 • Телефон: {phone}
 
 📋 **Что дальше:**
-1. Изучу ваш объект
+1. Изучу ваш объект (30-60 мин)
 2. Подготовлю оценку рынка
 3. Свяжусь в ближайшее время
 
@@ -795,7 +798,6 @@ def handle_message(user_id, name, text):
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                # ✅ НОВЫЙ ТЕКСТ: номер телефона прямо в сообщении
                 vk_send_message(user_id, f"""🎉 {name}, заявка принята!
 
 ✅ **Вы указали:**
@@ -804,7 +806,7 @@ def handle_message(user_id, name, text):
 • Телефон: {phone}
 
 📋 **Что дальше:**
-1. Проанализирую рынок
+1. Проанализирую рынок (1-2 часа)
 2. Подберу объекты с лучшей доходностью
 3. Подготовлю расчёт ROI
 4. Свяжусь в ближайшее время
@@ -856,7 +858,7 @@ def vk_webhook():
 
 @app.route('/health')
 def health():
-    return "VK Bot OK v2.9", 200
+    return "VK Bot OK v3.0", 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000)))
