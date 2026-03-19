@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Tula Key Bot — UX IMPROVED v2.6
+# Tula Key Bot — FIXED EMPTY STRING CHECKS v2.7
 
 import os
 import json
@@ -179,13 +179,11 @@ def help_keyboard():
 
 
 def final_keyboard(goal=''):
-    """✅ КЛАВИАТУРА ПОСЛЕ ЗАВЕРШЕНИЯ СЦЕНАРИЯ — с понятными опциями"""
     admin_link = f'https://vk.com/im?sel={VK_ADMIN_ID}' if VK_ADMIN_ID else VK_GROUP_LINK
     buttons = [
         [get_link_button('📞 Позвонить мне', f'tel:{VK_ADMIN_PHONE}')],
         [get_link_button('✍️ Написать в ЛС', admin_link)],
     ]
-    # Если есть активный сценарий — даём опции
     if goal:
         buttons.append([get_button(f'🔄 Новая заявка ({goal})', {'cmd': f'restart_{goal}'}, 'primary')])
     buttons.append([get_button('🔙 В главное меню', {'cmd': 'menu'}, 'secondary')])
@@ -282,13 +280,13 @@ def save_user_state(chat_id, name, data):
                 if status == 'new':
                     row_idx = i
                     existing_data = {
-                        'goal': row[3].strip() if len(row) > 3 else '',
-                        'budget': row[4].strip() if len(row) > 4 else '',
-                        'deadline': row[5].strip() if len(row) > 5 else '',
-                        'prop_type': row[6].strip() if len(row) > 6 else '',
-                        'district': row[7].strip() if len(row) > 7 else '',
-                        'invest_goal': row[8].strip() if len(row) > 8 else '',
-                        'invest_budget': row[9].strip() if len(row) > 9 else '',
+                        'goal': row[3].strip() if len(row) > 3 and row[3].strip() else '',
+                        'budget': row[4].strip() if len(row) > 4 and row[4].strip() else '',
+                        'deadline': row[5].strip() if len(row) > 5 and row[5].strip() else '',
+                        'prop_type': row[6].strip() if len(row) > 6 and row[6].strip() else '',
+                        'district': row[7].strip() if len(row) > 7 and row[7].strip() else '',
+                        'invest_goal': row[8].strip() if len(row) > 8 and row[8].strip() else '',
+                        'invest_budget': row[9].strip() if len(row) > 9 and row[9].strip() else '',
                     }
                     break
         
@@ -340,14 +338,14 @@ def get_user_state(chat_id):
                         return {
                             'chat_id': row[0].strip() if len(row) > 0 else '',
                             'name': row[1].strip() if len(row) > 1 else '',
-                            'goal': row[3].strip() if len(row) > 3 else '',
-                            'budget': row[4].strip() if len(row) > 4 else '',
-                            'deadline': row[5].strip() if len(row) > 5 else '',
-                            'prop_type': row[6].strip() if len(row) > 6 else '',
-                            'district': row[7].strip() if len(row) > 7 else '',
-                            'invest_goal': row[8].strip() if len(row) > 8 else '',
-                            'invest_budget': row[9].strip() if len(row) > 9 else '',
-                            'phone': row[10].strip() if len(row) > 10 else '',
+                            'goal': row[3].strip() if len(row) > 3 and row[3].strip() else '',
+                            'budget': row[4].strip() if len(row) > 4 and row[4].strip() else '',
+                            'deadline': row[5].strip() if len(row) > 5 and row[5].strip() else '',
+                            'prop_type': row[6].strip() if len(row) > 6 and row[6].strip() else '',
+                            'district': row[7].strip() if len(row) > 7 and row[7].strip() else '',
+                            'invest_goal': row[8].strip() if len(row) > 8 and row[8].strip() else '',
+                            'invest_budget': row[9].strip() if len(row) > 9 and row[9].strip() else '',
+                            'phone': row[10].strip() if len(row) > 10 and row[10].strip() else '',
                             'status': status,
                         }
         return None
@@ -377,7 +375,6 @@ def mark_lead_sent(chat_id):
 
 
 def clear_user_state(chat_id):
-    """✅ Полностью очищает состояние пользователя"""
     return save_user_state(chat_id, "", {
         'goal': '', 'budget': '', 'deadline': '',
         'prop_type': '', 'district': '',
@@ -407,7 +404,6 @@ def send_lead_to_admin(name, phone, user_id, state):
 # ==================== HANDLERS ====================
 
 def handle_start(user_id, name):
-    # ✅ ПОЛНЫЙ СБРОС СОСТОЯНИЯ
     clear_user_state(user_id)
     text = f"""✨ {name}, добро пожаловать в «Тульский ключ»!
 
@@ -520,18 +516,15 @@ def handle_message(user_id, name, text):
     # 🔘 ГЛАВНОЕ МЕНЮ И СБРОС
     # ========================================
     
-    # ✅ "Начать" — полный сброс
     if cmd in ["начать", "старт", "/start"]:
         handle_start(user_id, name)
         return
     
-    # ✅ "В меню" — сброс и главное меню
     if cmd in ["меню", "🔙 в меню", "🔙 в главное меню"]:
         clear_user_state(user_id)
         handle_start(user_id, name)
         return
     
-    # ✅ "Новая заявка" — сброс и запуск сценария
     if cmd.startswith("restart_"):
         goal = cmd.replace("restart_", "")
         clear_user_state(user_id)
@@ -546,7 +539,7 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, f"📊 {name}, 💡 Цель?", invest_goal_keyboard())
         return
     
-    # ✅ Запуск сценариев из главного меню (сброс перед стартом)
+    # Запуск сценариев (сброс перед стартом)
     if cmd in ["купить", "подобрать квартиру", "🏠 подобрать квартиру"]:
         clear_user_state(user_id)
         save_user_state(user_id, name, {'goal': 'buy'})
@@ -588,12 +581,26 @@ def handle_message(user_id, name, text):
         return
     
     # ========================================
-    # 🏠 ПОКУПКА — только если нет телефона (не завершено)
+    # 🏠 ПОКУПКА — ЯВНЫЕ ПРОВЕРКИ НА НЕПУСТЫЕ ЗНАЧЕНИЯ
     # ========================================
-    if state and state.get('goal') == 'buy' and not state.get('phone'):
-        logger.info(f"🔄 In BUY: budget={state.get('budget')}, district={state.get('district')}")
+    if state and state.get('goal') == 'buy':
+        logger.info(f"🔄 In BUY scenario")
         
+        # ✅ Если уже есть телефон — сценарий завершён
+        if state.get('phone'):
+            vk_send_message(user_id, f"""👋 {name}, вы уже оставили заявку на покупку!
+
+✅ Ваши данные сохранены — я свяжусь с вами.
+
+💡 Что можно сделать:
+• Создать новую заявку
+• Написать мне лично
+• Вернуться в меню""", final_keyboard('buy'))
+            return
+        
+        # ✅ Шаг 1: Бюджет
         if not state.get('budget'):
+            logger.info("BUY Step 1: Getting budget")
             budget = extract_budget(text)
             if budget:
                 save_user_state(user_id, name, {'budget': budget})
@@ -602,7 +609,9 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, f"{name}, напишите бюджет (3000000 или 3 млн)", budget_keyboard())
             return
         
-        if state.get('budget') and not state.get('district'):
+        # ✅ Шаг 2: Район
+        if not state.get('district'):
+            logger.info("BUY Step 2: Getting district")
             district_map = {'центр': 'Центральный', 'зареч': 'Зареченский', 'пролетар': 'Пролетарский',
                           'привокзал': 'Привокзальный', 'совет': 'Советский', 'любой': 'Любой', 'област': 'Область'}
             for k, v in district_map.items():
@@ -613,7 +622,9 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, "Выберите район из кнопок 👇", district_keyboard())
             return
         
-        if state.get('budget') and state.get('district') and not state.get('deadline'):
+        # ✅ Шаг 3: Срок
+        if not state.get('deadline'):
+            logger.info("BUY Step 3: Getting deadline")
             deadline_map = {'срочно': 'Срочно', 'неделю': 'Срочно', '1-3': '1-3 месяца',
                           'месяц': '1-3 месяца', '3-6': '3-6 месяцев', 'смотр': 'Присматриваюсь'}
             for k, v in deadline_map.items():
@@ -624,13 +635,14 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, "Выберите срок из кнопок 👇", deadline_keyboard())
             return
         
+        # ✅ Шаг 4: Телефон (все предыдущие поля заполнены)
         if state.get('budget') and state.get('district') and state.get('deadline') and not state.get('phone'):
+            logger.info("BUY Step 4: Getting phone")
             phone, valid = normalize_phone(text)
             if valid:
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                # ✅ ПОНЯТНОЕ СООБЩЕНИЕ ПОСЛЕ ЗАВЕРШЕНИЯ
                 vk_send_message(user_id, f"""🎉 {name}, заявка принята!
 
 ✅ **Вы указали:**
@@ -649,18 +661,30 @@ def handle_message(user_id, name, text):
 • Написать в личные сообщения
 • Создать новую заявку
 • Вернуться в меню""", final_keyboard('buy'))
-                logger.info("✅ BUY scenario completed")
+                logger.info("✅ BUY scenario completed with final message")
                 return
             vk_send_message(user_id, f"⚠️ {name}, это не телефон. Попробуйте: +7 999 123-45-67", phone_keyboard())
             return
     
     # ========================================
-    # 💰 ПРОДАЖА — только если нет телефона
+    # 💰 ПРОДАЖА
     # ========================================
-    if state and state.get('goal') == 'sell' and not state.get('phone'):
-        logger.info(f"🔄 In SELL: prop_type={state.get('prop_type')}, district={state.get('district')}")
+    if state and state.get('goal') == 'sell':
+        logger.info(f"🔄 In SELL scenario")
+        
+        if state.get('phone'):
+            vk_send_message(user_id, f"""👋 {name}, вы уже оставили заявку на продажу!
+
+✅ Ваши данные сохранены — я свяжусь с вами.
+
+💡 Что можно сделать:
+• Создать новую заявку
+• Написать мне лично
+• Вернуться в меню""", final_keyboard('sell'))
+            return
         
         if not state.get('prop_type'):
+            logger.info("SELL Step 1: Getting prop_type")
             prop_map = {'квартира': 'Квартира', 'дом': 'Дом', 'коттедж': 'Дом',
                        'комната': 'Комната', 'другое': 'Другое'}
             for k, v in prop_map.items():
@@ -671,7 +695,8 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, "Выберите тип из кнопок 👇", property_type_keyboard())
             return
         
-        if state.get('prop_type') and not state.get('district'):
+        if not state.get('district'):
+            logger.info("SELL Step 2: Getting district")
             district_map = {'центр': 'Центральный', 'зареч': 'Зареченский', 'пролетар': 'Пролетарский',
                           'привокзал': 'Привокзальный', 'совет': 'Советский', 'любой': 'Любой', 'област': 'Область'}
             for k, v in district_map.items():
@@ -683,12 +708,12 @@ def handle_message(user_id, name, text):
             return
         
         if state.get('prop_type') and state.get('district') and not state.get('phone'):
+            logger.info("SELL Step 3: Getting phone")
             phone, valid = normalize_phone(text)
             if valid:
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                # ✅ ПОНЯТНОЕ СООБЩЕНИЕ ПОСЛЕ ЗАВЕРШЕНИЯ
                 vk_send_message(user_id, f"""🎉 {name}, заявка принята!
 
 ✅ **Вы указали:**
@@ -706,18 +731,30 @@ def handle_message(user_id, name, text):
 • Написать в личные сообщения
 • Создать новую заявку
 • Вернуться в меню""", final_keyboard('sell'))
-                logger.info("✅ SELL scenario completed")
+                logger.info("✅ SELL scenario completed with final message")
                 return
             vk_send_message(user_id, f"⚠️ {name}, это не телефон. Попробуйте: +7 999 123-45-67", phone_keyboard())
             return
     
     # ========================================
-    # 📊 ИНВЕСТИЦИИ — только если нет телефона
+    # 📊 ИНВЕСТИЦИИ
     # ========================================
-    if state and state.get('goal') == 'invest' and not state.get('phone'):
-        logger.info(f"🔄 In INVEST: invest_goal={state.get('invest_goal')}, invest_budget={state.get('invest_budget')}")
+    if state and state.get('goal') == 'invest':
+        logger.info(f"🔄 In INVEST scenario")
+        
+        if state.get('phone'):
+            vk_send_message(user_id, f"""👋 {name}, вы уже оставили заявку на инвестиции!
+
+✅ Ваши данные сохранены — я свяжусь с вами.
+
+💡 Что можно сделать:
+• Создать новую заявку
+• Написать мне лично
+• Вернуться в меню""", final_keyboard('invest'))
+            return
         
         if not state.get('invest_goal'):
+            logger.info("INVEST Step 1: Getting invest_goal")
             goal_map = {'перепродаж': 'Перепродажа', 'флиппинг': 'Перепродажа',
                        'аренд': 'Аренда', 'долгосрок': 'Долгосрок', 'консультаци': 'Консультация'}
             for k, v in goal_map.items():
@@ -728,7 +765,8 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, "Выберите цель из кнопок 👇", invest_goal_keyboard())
             return
         
-        if state.get('invest_goal') and not state.get('invest_budget'):
+        if not state.get('invest_budget'):
+            logger.info("INVEST Step 2: Getting invest_budget")
             budget = extract_budget(text)
             if budget:
                 save_user_state(user_id, name, {'invest_budget': budget})
@@ -747,12 +785,12 @@ def handle_message(user_id, name, text):
             return
         
         if state.get('invest_goal') and state.get('invest_budget') and not state.get('phone'):
+            logger.info("INVEST Step 3: Getting phone")
             phone, valid = normalize_phone(text)
             if valid:
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                # ✅ ПОНЯТНОЕ СООБЩЕНИЕ ПОСЛЕ ЗАВЕРШЕНИЯ
                 vk_send_message(user_id, f"""🎉 {name}, заявка принята!
 
 ✅ **Вы указали:**
@@ -771,28 +809,10 @@ def handle_message(user_id, name, text):
 • Написать в личные сообщения
 • Создать новую заявку
 • Вернуться в меню""", final_keyboard('invest'))
-                logger.info("✅ INVEST scenario completed")
+                logger.info("✅ INVEST scenario completed with final message")
                 return
             vk_send_message(user_id, f"⚠️ {name}, это не телефон. Попробуйте: +7 999 123-45-67", phone_keyboard())
             return
-    
-    # ========================================
-    # ❓ ЕСЛИ СЦЕНАРИЙ УЖЕ ЗАВЕРШЁН (есть phone)
-    # ========================================
-    if state and state.get('phone'):
-        goal = state.get('goal', '')
-        goal_name = {'buy': 'покупку', 'sell': 'продажу', 'invest': 'инвестиции'}.get(goal, 'заявку')
-        
-        vk_send_message(user_id, f"""👋 {name}, вы уже оставили заявку на {goal_name}!
-
-✅ **Ваши данные сохранены** — я свяжусь с вами в ближайшее время.
-
-💡 **Что можно сделать сейчас:**
-• Создать новую заявку
-• Написать мне лично
-• Скачать чек-лист
-• Вернуться в меню""", final_keyboard(goal))
-        return
     
     # ========================================
     # ❌ НЕИЗВЕСТНАЯ КОМАНДА
@@ -834,7 +854,7 @@ def vk_webhook():
 
 @app.route('/health')
 def health():
-    return "VK Bot OK v2.6", 200
+    return "VK Bot OK v2.7", 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000)))
