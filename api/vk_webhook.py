@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Tula Key Bot — FINAL WORKING VERSION v3.2
+# Tula Key Bot — FINAL WORKING v3.3
 
 import os
 import json
@@ -82,14 +82,14 @@ def create_keyboard(one_time=False, buttons=None):
     return json.dumps({'one_time': one_time, 'buttons': buttons}, ensure_ascii=False)
 
 
+# ✅ УБРАНА кнопка "Как это работает"
 def main_menu_keyboard():
     return create_keyboard(one_time=False, buttons=[
         [get_button('🏠 Подобрать квартиру', {'cmd': 'buy'}, 'primary')],
         [get_button('💰 Продажа объекта', {'cmd': 'sell'}, 'primary')],
         [get_button('📥 Получить чек-лист', {'cmd': 'checklist'}, 'secondary')],
         [get_button('📊 Инвестиции', {'cmd': 'invest'}, 'secondary')],
-        [get_button('ℹ️ Как это работает?', {'cmd': 'how_it_works'}, 'secondary')],
-        [get_button('💬 Помощь', {'cmd': 'help'}, 'secondary')],
+        [get_button('💬 Помощь и вопросы', {'cmd': 'help'}, 'secondary')],
         [get_link_button('📢 Наш канал', VK_GROUP_LINK)]
     ])
 
@@ -167,20 +167,14 @@ def checklist_keyboard():
     ])
 
 
-def how_it_works_keyboard():
-    return create_keyboard(one_time=False, buttons=[
-        [get_button('🏠 Подобрать квартиру', {'cmd': 'buy'}, 'primary')],
-        [get_button('💰 Продать объект', {'cmd': 'sell'}, 'primary')],
-        [get_button('📊 Инвестиции', {'cmd': 'invest'}, 'secondary')],
-        [get_button('🔙 В меню', {'cmd': 'menu'}, 'secondary')]
-    ])
-
-
+# ✅ ДОБАВЛЕНЫ: Кнопки FAQ про покупку и продажу
 def help_keyboard():
     admin_link = f'https://vk.com/im?sel={VK_ADMIN_ID}'.strip() if VK_ADMIN_ID else VK_GROUP_LINK
     return create_keyboard(one_time=False, buttons=[
         [get_button('❓ Как работает бот?', {'cmd': 'faq_bot'}, 'secondary')],
         [get_button('🤝 Условия работы', {'cmd': 'faq_conditions'}, 'secondary')],
+        [get_button('🏠 Как подобрать квартиру?', {'cmd': 'faq_buy_info'}, 'secondary')],  # ✅ НОВАЯ
+        [get_button('💰 Как продать недвижимость?', {'cmd': 'faq_sell_info'}, 'secondary')],  # ✅ НОВАЯ
         [get_link_button('✍️ Написать лично', admin_link)],
         [get_button('🔙 В меню', {'cmd': 'menu'}, 'secondary')]
     ])
@@ -427,24 +421,6 @@ def handle_checklist(user_id, name):
 👇 Скачивайте!""", checklist_keyboard())
 
 
-def handle_how_it_works(user_id, name):
-    vk_send_message(user_id, """📚 **Как это работает:**
-
-🏠 **Подобрать квартиру:**
-1️⃣ Бюджет → 2️⃣ Район → 3️⃣ Срок → 4️⃣ Телефон
-⏱️ Срок: 2-14 дней
-
-💰 **Продать недвижимость:**
-1️⃣ Тип → 2️⃣ Район → 3️⃣ Телефон
-⏱️ Срок: 1-3 месяца
-
-📊 **Инвестиции:**
-1️⃣ Цель → 2️⃣ Бюджет → 3️⃣ Телефон
-⏱️ Доходность: 8-12% годовых
-
-Выберите что вас интересует 👇""", how_it_works_keyboard())
-
-
 def handle_help(user_id, name):
     vk_send_message(user_id, f"""💬 {name}, помогу!
 
@@ -485,7 +461,8 @@ def handle_faq(user_id, name, topic):
 
 Есть вопросы? Напишите мне лично 👇""",
         
-        'faq_buy': """🏠 **Подобрать квартиру:**
+        # ✅ ВАШ ТЕКСТ БЕЗ ИЗМЕНЕНИЙ
+        'faq_buy_info': """🏠 **Подобрать квартиру:**
 
 1️⃣ Бюджет → 2️⃣ Район → 3️⃣ Срок → 4️⃣ Телефон
 
@@ -502,7 +479,8 @@ def handle_faq(user_id, name, topic):
 
 🚀 Нажмите «Подобрать квартиру» чтобы начать 👇""",
         
-        'faq_sell': """💰 **Продать недвижимость:**
+        # ✅ ВАШ ТЕКСТ БЕЗ ИЗМЕНЕНИЙ
+        'faq_sell_info': """💰 **Продать недвижимость:**
 
 1️⃣ Тип → 2️⃣ Район → 3️⃣ Телефон
 
@@ -596,19 +574,24 @@ def handle_message(user_id, name, text):
         handle_checklist(user_id, name)
         return
     
-    if cmd in ["как это работает", "ℹ️ как это работает", "как это работает?"]:
-        logger.info("📍 HOW IT WORKS")
-        handle_how_it_works(user_id, name)
-        return
-    
     if cmd in ["помощь", "помощь и вопросы", "💬 помощь", "💬 помощь и вопросы"]:
         logger.info("📍 HELP")
         handle_help(user_id, name)
         return
     
     # ========================================
-    # ❓ FAQ
+    # ❓ FAQ — НОВЫЕ УНИКАЛЬНЫЕ КОМАНДЫ
     # ========================================
+    if cmd in ["faq_buy_info", "как подобрать квартиру", "как купить квартиру", "подобрать квартиру информация"]:
+        logger.info("📍 FAQ BUY INFO")
+        handle_faq(user_id, name, 'faq_buy_info')
+        return
+    
+    if cmd in ["faq_sell_info", "как продать недвижимость", "как продать квартиру", "продать информация"]:
+        logger.info("📍 FAQ SELL INFO")
+        handle_faq(user_id, name, 'faq_sell_info')
+        return
+    
     if cmd in ["faq_bot", "❓ как работает бот", "как работает бот"]:
         logger.info("📍 FAQ BOT")
         handle_faq(user_id, name, 'faq_bot')
@@ -625,7 +608,6 @@ def handle_message(user_id, name, text):
     if state and state.get('goal') == 'buy':
         logger.info(f"🔄 IN BUY: budget={bool(state.get('budget'))}, district={bool(state.get('district'))}, deadline={bool(state.get('deadline'))}, phone={bool(state.get('phone'))}")
         
-        # Если уже завершено
         if state.get('phone'):
             vk_send_message(user_id, f"""👋 {name}, вы уже оставили заявку на покупку!
 
@@ -634,7 +616,6 @@ def handle_message(user_id, name, text):
 💡 Можно: новая заявка, написать лично, меню""", final_keyboard('buy'))
             return
         
-        # Шаг 1: Бюджет
         if not state.get('budget'):
             logger.info("BUY Step 1: Budget")
             budget = extract_budget(text)
@@ -645,7 +626,6 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, f"{name}, напишите бюджет (3000000 или 3 млн)", budget_keyboard())
             return
         
-        # Шаг 2: Район
         if not state.get('district'):
             logger.info("BUY Step 2: District")
             district_map = {'центр': 'Центральный', 'зареч': 'Зареченский', 'пролетар': 'Пролетарский',
@@ -658,7 +638,6 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, "Выберите район из кнопок 👇", district_keyboard())
             return
         
-        # Шаг 3: Срок
         if not state.get('deadline'):
             logger.info("BUY Step 3: Deadline")
             deadline_map = {'срочно': 'Срочно', 'неделю': 'Срочно', '1-3': '1-3 месяца',
@@ -671,7 +650,6 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, "Выберите срок из кнопок 👇", deadline_keyboard())
             return
         
-        # Шаг 4: Телефон
         if state.get('budget') and state.get('district') and state.get('deadline') and not state.get('phone'):
             logger.info("BUY Step 4: Phone")
             phone, valid = normalize_phone(text)
@@ -713,7 +691,6 @@ def handle_message(user_id, name, text):
 💡 Можно: новая заявка, написать лично, меню""", final_keyboard('sell'))
             return
         
-        # Шаг 1: Тип
         if not state.get('prop_type'):
             logger.info("SELL Step 1: Prop Type")
             prop_map = {'квартира': 'Квартира', 'дом': 'Дом', 'коттедж': 'Дом',
@@ -726,7 +703,6 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, "Выберите тип из кнопок 👇", property_type_keyboard())
             return
         
-        # Шаг 2: Район
         if not state.get('district'):
             logger.info("SELL Step 2: District")
             district_map = {'центр': 'Центральный', 'зареч': 'Зареченский', 'пролетар': 'Пролетарский',
@@ -739,7 +715,6 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, "Выберите район из кнопок 👇", district_keyboard())
             return
         
-        # Шаг 3: Телефон
         if state.get('prop_type') and state.get('district') and not state.get('phone'):
             logger.info("SELL Step 3: Phone")
             phone, valid = normalize_phone(text)
@@ -780,7 +755,6 @@ def handle_message(user_id, name, text):
 💡 Можно: новая заявка, написать лично, меню""", final_keyboard('invest'))
             return
         
-        # Шаг 1: Цель
         if not state.get('invest_goal'):
             logger.info("INVEST Step 1: Goal")
             goal_map = {'перепродаж': 'Перепродажа', 'флиппинг': 'Перепродажа',
@@ -793,7 +767,6 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, "Выберите цель из кнопок 👇", invest_goal_keyboard())
             return
         
-        # Шаг 2: Бюджет
         if not state.get('invest_budget'):
             logger.info("INVEST Step 2: Budget")
             budget = extract_budget(text)
@@ -813,7 +786,6 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, f"🎉 Почти готово!\n\n📞 Телефон:", phone_keyboard())
             return
         
-        # Шаг 3: Телефон
         if state.get('invest_goal') and state.get('invest_budget') and not state.get('phone'):
             logger.info("INVEST Step 3: Phone")
             phone, valid = normalize_phone(text)
@@ -850,7 +822,6 @@ def handle_message(user_id, name, text):
 💰 Продажа объекта
 📊 Инвестиции
 📥 Чек-лист
-ℹ️ Как это работает
 💬 Помощь
 
 Или «начать» для меню 👇""", main_menu_keyboard())
@@ -882,7 +853,7 @@ def vk_webhook():
 
 @app.route('/health')
 def health():
-    return "VK Bot OK v3.2", 200
+    return "VK Bot OK v3.3", 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000)))
