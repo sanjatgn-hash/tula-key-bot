@@ -446,23 +446,18 @@ def handle_message(user_id, name, text):
         handle_help(user_id, name)
         return
     
-    # ✅ FAQ — ПЕРЕД СЦЕНАРИЯМИ!
-    if cmd in ["инфо покупка", "как купить", "про подбор", "как подбирают квартиру"]:
-        logger.info("📍 Command: FAQ BUY")  # ✅ ЛОГ
+    
+    # ✅ FAQ — ОБНОВЛЁННЫЕ ПРОВЕРКИ (с эмодзи и ?)
+    if cmd in ["инфо покупка", "как купить", "про подбор", "как подбирают квартиру", 
+               "ℹ️ как подбирают квартиру", "ℹ️ как подбирают квартиру?", "как подбирают квартиру?"]:
+        logger.info("📍 Command: FAQ BUY")
         handle_faq(user_id, name, 'faq_buy')
         return
-    
-    if cmd in ["инфо продажа", "как продать", "про продажу", "как продают недвижимость"]:
-        logger.info("📍 Command: FAQ SELL")  # ✅ ЛОГ
+
+    if cmd in ["инфо продажа", "как продать", "про продажу", "как продают недвижимость",
+               "ℹ️ как продают недвижимость", "ℹ️ как продают недвижимость?", "как продают недвижимость?"]:
+        logger.info("📍 Command: FAQ SELL")
         handle_faq(user_id, name, 'faq_sell')
-        return
-    
-    if cmd in ["faq_bot", "❓ как работает бот?", "как работает бот"]:
-        handle_faq(user_id, name, 'faq_bot')
-        return
-    
-    if cmd in ["faq_conditions", "🤝 условия работы", "условия"]:
-        handle_faq(user_id, name, 'faq_conditions')
         return
     
     # СЦЕНАРИИ (продолжение)
