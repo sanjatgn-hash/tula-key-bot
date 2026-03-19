@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Tula Key Bot — FIXED EMPTY STRING CHECKS v2.7
+# Tula Key Bot — FIXED LINK BUTTONS v2.8
 
 import os
 import json
@@ -73,7 +73,9 @@ def get_button(label, payload='', color='primary'):
 
 
 def get_link_button(label, url):
-    return {"action": {"type": "open_link", "link": url.strip(), "label": label}}
+    # ✅ strip() для удаления пробелов
+    clean_url = url.strip()
+    return {"action": {"type": "open_link", "link": clean_url, "label": label}}
 
 
 def create_keyboard(one_time=False, buttons=None):
@@ -167,7 +169,7 @@ def checklist_keyboard():
 
 
 def help_keyboard():
-    admin_link = f'https://vk.com/im?sel={VK_ADMIN_ID}' if VK_ADMIN_ID else VK_GROUP_LINK
+    admin_link = f'https://vk.com/im?sel={VK_ADMIN_ID}'.strip() if VK_ADMIN_ID else VK_GROUP_LINK
     return create_keyboard(one_time=False, buttons=[
         [get_button('❓ Как работает бот?', {'cmd': 'faq_bot'}, 'secondary')],
         [get_button('🤝 Условия работы', {'cmd': 'faq_conditions'}, 'secondary')],
@@ -179,9 +181,12 @@ def help_keyboard():
 
 
 def final_keyboard(goal=''):
-    admin_link = f'https://vk.com/im?sel={VK_ADMIN_ID}' if VK_ADMIN_ID else VK_GROUP_LINK
+    """✅ ИСПРАВЛЕНО: Убран tel: link, добавлен .strip()"""
+    admin_link = f'https://vk.com/im?sel={VK_ADMIN_ID}'.strip() if VK_ADMIN_ID else VK_GROUP_LINK
+    
     buttons = [
-        [get_link_button('📞 Позвонить мне', f'tel:{VK_ADMIN_PHONE}')],
+        # ✅ ТЕКСТОВАЯ КНОПКА вместо tel: (который не работает в VK)
+        [get_button(f'📞 Позвонить: {VK_ADMIN_PHONE}', {'cmd': 'phone_hint'}, 'secondary')],
         [get_link_button('✍️ Написать в ЛС', admin_link)],
     ]
     if goal:
@@ -580,13 +585,21 @@ def handle_message(user_id, name, text):
         handle_faq(user_id, name, 'faq_sell')
         return
     
+    # Обработка текстовой кнопки с номером телефона
+    if cmd == "phone_hint":
+        vk_send_message(user_id, f"""📞 {name}, мой номер: {VK_ADMIN_PHONE}
+
+💡 Нажмите и удерживайте номер, чтобы скопировать, или добавьте в контакты.
+
+Я на связи! 🤝""", final_keyboard(state.get('goal') if state else ''))
+        return
+    
     # ========================================
-    # 🏠 ПОКУПКА — ЯВНЫЕ ПРОВЕРКИ НА НЕПУСТЫЕ ЗНАЧЕНИЯ
+    # 🏠 ПОКУПКА
     # ========================================
     if state and state.get('goal') == 'buy':
         logger.info(f"🔄 In BUY scenario")
         
-        # ✅ Если уже есть телефон — сценарий завершён
         if state.get('phone'):
             vk_send_message(user_id, f"""👋 {name}, вы уже оставили заявку на покупку!
 
@@ -598,7 +611,6 @@ def handle_message(user_id, name, text):
 • Вернуться в меню""", final_keyboard('buy'))
             return
         
-        # ✅ Шаг 1: Бюджет
         if not state.get('budget'):
             logger.info("BUY Step 1: Getting budget")
             budget = extract_budget(text)
@@ -609,7 +621,6 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, f"{name}, напишите бюджет (3000000 или 3 млн)", budget_keyboard())
             return
         
-        # ✅ Шаг 2: Район
         if not state.get('district'):
             logger.info("BUY Step 2: Getting district")
             district_map = {'центр': 'Центральный', 'зареч': 'Зареченский', 'пролетар': 'Пролетарский',
@@ -622,7 +633,6 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, "Выберите район из кнопок 👇", district_keyboard())
             return
         
-        # ✅ Шаг 3: Срок
         if not state.get('deadline'):
             logger.info("BUY Step 3: Getting deadline")
             deadline_map = {'срочно': 'Срочно', 'неделю': 'Срочно', '1-3': '1-3 месяца',
@@ -635,7 +645,6 @@ def handle_message(user_id, name, text):
             vk_send_message(user_id, "Выберите срок из кнопок 👇", deadline_keyboard())
             return
         
-        # ✅ Шаг 4: Телефон (все предыдущие поля заполнены)
         if state.get('budget') and state.get('district') and state.get('deadline') and not state.get('phone'):
             logger.info("BUY Step 4: Getting phone")
             phone, valid = normalize_phone(text)
@@ -657,7 +666,7 @@ def handle_message(user_id, name, text):
 3. Свяжусь с вами в ближайшее время
 
 💡 **Можно прямо сейчас:**
-• Позвонить мне
+• Позвонить мне (кнопка ниже)
 • Написать в личные сообщения
 • Создать новую заявку
 • Вернуться в меню""", final_keyboard('buy'))
@@ -727,7 +736,7 @@ def handle_message(user_id, name, text):
 3. Свяжусь в ближайшее время
 
 💡 **Можно прямо сейчас:**
-• Позвонить мне
+• Позвонить мне (кнопка ниже)
 • Написать в личные сообщения
 • Создать новую заявку
 • Вернуться в меню""", final_keyboard('sell'))
@@ -805,7 +814,7 @@ def handle_message(user_id, name, text):
 4. Свяжусь в ближайшее время
 
 💡 **Можно прямо сейчас:**
-• Позвонить мне
+• Позвонить мне (кнопка ниже)
 • Написать в личные сообщения
 • Создать новую заявку
 • Вернуться в меню""", final_keyboard('invest'))
@@ -854,7 +863,7 @@ def vk_webhook():
 
 @app.route('/health')
 def health():
-    return "VK Bot OK v2.7", 200
+    return "VK Bot OK v2.8", 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000)))
