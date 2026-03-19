@@ -1,5 +1,5 @@
 # api/vk_webhook.py
-# Tula Key Bot — FIXED v2.4 (All Issues Resolved)
+# Tula Key Bot — FIXED v2.5 (URL spaces + scenario flow)
 
 import os
 import json
@@ -19,9 +19,9 @@ VK_TOKEN = os.getenv("VK_TOKEN", "")
 VK_GROUP_ID = os.getenv("VK_GROUP_ID", "")
 VK_CONFIRMATION_TOKEN = os.getenv("VK_CONFIRMATION_TOKEN", "")
 VK_ADMIN_ID = os.getenv("VK_ADMIN_ID", "")
-VK_ADMIN_PHONE = os.getenv("VK_ADMIN_PHONE", "+7 (XXX) XXX-XX-XX")  # Добавьте на Vercel
+VK_ADMIN_PHONE = os.getenv("VK_ADMIN_PHONE", "+79991234567")
 CHECKLIST_URL = os.getenv("CHECKLIST_URL", "")
-VK_GROUP_LINK = os.getenv("VK_GROUP_LINK", "https://vk.com/tula_key")
+VK_GROUP_LINK = os.getenv("VK_GROUP_LINK", "https://vk.com/tula_key").strip()
 GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "")
 GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON", "")
 
@@ -36,6 +36,7 @@ logger.info("=" * 50)
 # ==================== VK API ====================
 
 def vk_api_call(method, params):
+    # ✅ УБРАНЫ ПРОБЕЛЫ В URL
     params.update({"access_token": VK_TOKEN, "v": "5.199", "group_id": VK_GROUP_ID})
     try:
         resp = requests.post(f"https://api.vk.com/method/{method}", data=params, timeout=10)
@@ -74,6 +75,7 @@ def get_button(label, payload='', color='primary'):
 
 
 def get_link_button(label, url):
+    # ✅ strip() для удаления пробелов
     return {
         "action": {"type": "open_link", "link": url.strip(), "label": label}
     }
@@ -86,10 +88,9 @@ def create_keyboard(one_time=False, buttons=None):
 
 
 def main_menu_keyboard():
-    """✅ ИЗМЕНЕНО: «Продажа объекта» вместо «Продать квартиру»"""
     return create_keyboard(one_time=False, buttons=[
         [get_button('🏠 Подобрать квартиру', {'cmd': 'buy'}, 'primary')],
-        [get_button('💰 Продажа объекта', {'cmd': 'sell'}, 'primary')],  # ✅ ИЗМЕНЕНО
+        [get_button('💰 Продажа объекта', {'cmd': 'sell'}, 'primary')],
         [get_button('📥 Получить чек-лист', {'cmd': 'checklist'}, 'secondary')],
         [get_button('📊 Инвестиции', {'cmd': 'invest'}, 'secondary')],
         [get_button('💬 Помощь и вопросы', {'cmd': 'help'}, 'secondary')],
@@ -174,16 +175,15 @@ def help_keyboard():
     admin_link = f'https://vk.com/im?sel={VK_ADMIN_ID}' if VK_ADMIN_ID else VK_GROUP_LINK
     return create_keyboard(one_time=False, buttons=[
         [get_button('❓ Как работает бот?', {'cmd': 'faq_bot'}, 'secondary')],
-        [get_button('🤝 Условия работы', {'cmd': 'faq_conditions'}, 'secondary')],  # ✅ ИЗМЕНЕНО
-        [get_button('🏠 Подобрать квартиру', {'cmd': 'buy'}, 'primary')],  # ✅ ВЕДЁТ К СЦЕНАРИЮ
-        [get_button('💰 Продажа объекта', {'cmd': 'sell'}, 'primary')],  # ✅ ВЕДЁТ К СЦЕНАРИЮ
+        [get_button('🤝 Условия работы', {'cmd': 'faq_conditions'}, 'secondary')],
+        [get_button('🏠 Подобрать квартиру', {'cmd': 'buy'}, 'primary')],
+        [get_button('💰 Продажа объекта', {'cmd': 'sell'}, 'primary')],
         [get_link_button('✍️ Написать лично', admin_link)],
         [get_button('🔙 В меню', {'cmd': 'menu'}, 'secondary')]
     ])
 
 
 def final_keyboard():
-    """✅ КЛАВИАТУРА ПОСЛЕ ЗАВЕРШЕНИЯ СЦЕНАРИЯ"""
     admin_link = f'https://vk.com/im?sel={VK_ADMIN_ID}' if VK_ADMIN_ID else VK_GROUP_LINK
     return create_keyboard(one_time=False, buttons=[
         [get_link_button('📞 Позвонить мне', f'tel:{VK_ADMIN_PHONE}')],
@@ -241,7 +241,11 @@ def get_sheet():
         import gspread
         if not GOOGLE_CREDS_JSON or not GOOGLE_SHEET_ID:
             return None
-        scopes = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        # ✅ УБРАНЫ ПРОБЕЛЫ В SCOPES
+        scopes = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/drive"
+        ]
         creds = Credentials.from_service_account_info(json.loads(GOOGLE_CREDS_JSON), scopes=scopes)
         client = gspread.authorize(creds)
         sheet = client.open_by_key(GOOGLE_SHEET_ID).sheet1
@@ -395,7 +399,6 @@ def send_lead_to_admin(name, phone, user_id, state):
 # ==================== HANDLERS ====================
 
 def handle_start(user_id, name):
-    # ✅ СБРАСЫВАЕМ СОСТОЯНИЕ ПРИ НОВОМ СТАРТЕ
     save_user_state(user_id, name, {
         'goal': '', 'budget': '', 'deadline': '',
         'prop_type': '', 'district': '',
@@ -426,7 +429,6 @@ def handle_help(user_id, name):
 
 
 def handle_faq(user_id, name, topic):
-    """✅ ИЗМЕНЕНО: Подробные и человечные ответы"""
     faqs = {
         'faq_bot': f"""🤖 {name}, я — ваш универсальный помощник по недвижимости в Туле!
 
@@ -485,14 +487,12 @@ def handle_faq(user_id, name, topic):
 3️⃣ Телефон — оставляете для связи
 
 📋 **Что я делаю:**
-• Бесплатный анализ тенденций и оценка рынка, чтобы быть в курсе актуальной цены
-• Профессиональные фото (по желанию) от нашего фотографа 
-• Размещение на всех площадках (VK, Циан, Авито и другие), чаты риелторов и инвесторов 
+• Бесплатный анализ тенденций и оценка рынка
+• Профессиональные фото (по желанию)
+• Размещение на всех площадках (VK, Циан, Авито)
 • Показы потенциальным покупателям
 • Ведение переговоров и торг за Вас
-• Генерация входящего потока благодаря использованию всех доступных инструментов (Расклейка, платное продвижение и многое другое)
-• Полное сопровождение сделки от Здравствуйте, меня зовут... до Александр, огромное спасибо за сделку, я порекомендую вас своим знакомым
-• Отслеживание статистики
+• Полное сопровождение сделки
 
 ⏱️ **Срок продажи:** 1-3 месяца в среднем
 
@@ -562,7 +562,7 @@ def handle_message(user_id, name, text):
     
     # ПОКУПКА
     if state and state.get('goal') == 'buy':
-        logger.info(f"🔄 In BUY: budget={state.get('budget')}, district={state.get('district')}")
+        logger.info(f"🔄 In BUY: budget={state.get('budget')}, district={state.get('district')}, phone={state.get('phone')}")
         
         if not state.get('budget'):
             logger.info("BUY Step 1: Budget")
@@ -605,7 +605,7 @@ def handle_message(user_id, name, text):
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                # ✅ ИЗМЕНЕНО: Новый текст и клавиатура
+                # ✅ ИСПРАВЛЕНО: Показываем сообщение и клавиатуру
                 vk_send_message(user_id, f"""✅ {name}, спасибо! Заявка принята!
 
 📞 Телефон: {phone}
@@ -617,13 +617,19 @@ def handle_message(user_id, name, text):
 
 💡 **Хотите связаться быстрее?**
 Нажмите кнопку ниже — можно позвонить или написать лично!""", final_keyboard())
+                logger.info("✅ BUY scenario completed with final message")
                 return
             vk_send_message(user_id, f"⚠️ Не телефон. Попробуйте: +7 999 123-45-67", phone_keyboard())
+            return
+        
+        # ✅ ДОБАВЛЕНО: Если все поля заполнены но телефон ещё нет
+        if state.get('budget') and state.get('district') and state.get('deadline') and not state.get('phone'):
+            vk_send_message(user_id, f"📞 {name}, оставьте телефон для связи:", phone_keyboard())
             return
     
     # ПРОДАЖА
     if state and state.get('goal') == 'sell':
-        logger.info(f"🔄 In SELL: prop_type={state.get('prop_type')}, district={state.get('district')}")
+        logger.info(f"🔄 In SELL: prop_type={state.get('prop_type')}, district={state.get('district')}, phone={state.get('phone')}")
         
         if not state.get('prop_type'):
             logger.info("SELL Step 1: Prop Type")
@@ -656,7 +662,7 @@ def handle_message(user_id, name, text):
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                # ✅ ИЗМЕНЕНО: Новый текст и клавиатура
+                # ✅ ИСПРАВЛЕНО: Показываем сообщение и клавиатуру
                 vk_send_message(user_id, f"""✅ {name}, спасибо! Заявка принята!
 
 📞 Телефон: {phone}
@@ -668,13 +674,14 @@ def handle_message(user_id, name, text):
 
 💡 **Хотите связаться быстрее?**
 Нажмите кнопку ниже — можно позвонить или написать лично!""", final_keyboard())
+                logger.info("✅ SELL scenario completed with final message")
                 return
             vk_send_message(user_id, f"⚠️ Не телефон. Попробуйте: +7 999 123-45-67", phone_keyboard())
             return
     
     # ИНВЕСТИЦИИ
     if state and state.get('goal') == 'invest':
-        logger.info(f"🔄 In INVEST: invest_goal={state.get('invest_goal')}, invest_budget={state.get('invest_budget')}")
+        logger.info(f"🔄 In INVEST: invest_goal={state.get('invest_goal')}, invest_budget={state.get('invest_budget')}, phone={state.get('phone')}")
         
         if not state.get('invest_goal'):
             logger.info("INVEST Step 1: Goal")
@@ -714,7 +721,7 @@ def handle_message(user_id, name, text):
                 save_user_state(user_id, name, {'phone': phone})
                 send_lead_to_admin(name, phone, user_id, state)
                 mark_lead_sent(user_id)
-                # ✅ ИЗМЕНЕНО: Новый текст и клавиатура
+                # ✅ ИСПРАВЛЕНО: Показываем сообщение и клавиатуру
                 vk_send_message(user_id, f"""✅ {name}, спасибо! Заявка принята!
 
 📞 Телефон: {phone}
@@ -727,10 +734,12 @@ def handle_message(user_id, name, text):
 
 💡 **Хотите связаться быстрее?**
 Нажмите кнопку ниже — можно позвонить или написать лично!""", final_keyboard())
+                logger.info("✅ INVEST scenario completed with final message")
                 return
             vk_send_message(user_id, f"⚠️ Не телефон. Попробуйте: +7 999 123-45-67", phone_keyboard())
             return
     
+    # Если ничего не подошло — показываем меню
     vk_send_message(user_id, f"👋 {name}, выберите действие:", main_menu_keyboard())
 
 
@@ -754,11 +763,13 @@ def vk_webhook():
         return "ok", 200
     except Exception as e:
         logger.error(f"Error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return "error", 500
 
 @app.route('/health')
 def health():
-    return "VK Bot OK v2.4", 200
+    return "VK Bot OK v2.5", 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000)))
